@@ -1,8 +1,4 @@
 # ComputantialMath
-├── CFD 计算流体力学的程序
-│   ├── Riemann
-│   └── Shock 
-└── README.md
 CFD
 ├── Euler  一维Euler方程的数值解
 │   ├── Euler.py
@@ -16,7 +12,7 @@ CFD
 │   ├── code
 │   ├── fig
 │   └── readme.md
-└── Shock 有R-H关系推导波前状态和激波速度
+└── Shock 根据R-H关系推导波前状态和激波速度
     ├── Machinit.m
     ├── readme.md
     ├── shock.jpg
