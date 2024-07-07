@@ -29,6 +29,8 @@ int main(int argc, char *argv[])
   std::vector<int> allgaher_data;
   allgaher_data.resize(n_rank);
   MPI_Allgather(&rank, 1, MPI_INT, &allgaher_data[0], 1, MPI_INT, MPI_COMM_WORLD);
+  int n_request = 0;
+  int n_status = 0;
   if (rank == 0)
   {
     std::cout << "MPI_Allgather data\n";
