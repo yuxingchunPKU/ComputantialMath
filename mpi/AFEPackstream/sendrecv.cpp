@@ -142,6 +142,16 @@ int main(int argc, char *argv[])
       }
     }
   }
+  // 试试all2all的通信
+  std::vector<int> send_size_vec(n_rank);
+  for (int i = 0; i < n_rank; ++i)
+  {
+    send_size_vec[i] = rand() % n_rank;
+  }
+  std::vector<int> recv_size_vec(n_rank, 0);
+
+  MPI_Alltoall(&send_size_vec[0], 1, MPI_INT, &recv_size_vec[0], 1, MPI_INT, MPI_COMM_WORLD);
+
   MPI_Finalize();
   return 0;
 }
