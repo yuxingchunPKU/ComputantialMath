@@ -1,22 +1,11 @@
 # ComputantialMath
-CFD
-├── Euler  一维Euler方程的数值解
-│   ├── Euler.py
-│   ├── Fluid1d.py
-│   ├── NumericalFlux.py
-│   ├── __pycache__
-│   ├── p.png
-│   ├── rho.png
-│   └── u.png
-├── Riemann  黎曼问题精确解
-│   ├── code
-│   ├── fig
-│   └── readme.md
-└── Shock 根据R-H关系推导波前状态和激波速度
-    ├── Machinit.m
-    ├── readme.md
-    ├── shock.jpg
-    ├── shockinitV1.m
-    └── shockinitV2.m
 
-6 directories, 12 files
+本仓库包含下面的内容
+
+- CFD 模拟可压缩流体的数值方法 控制方程是 Euler 方程组
+  - 有限体积方法数值格式
+  - 间断有限元的数值格式
+  - 黎曼问题的精确解
+- doc 数值格式的文档，会有一些笔记的照片
+- mpi 并行的一些测试代码
+
