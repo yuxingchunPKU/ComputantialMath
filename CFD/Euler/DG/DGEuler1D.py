@@ -11,27 +11,36 @@ sys.path.append("../../Riemann")
 import Fluid as Fdexact
 import Exact_Riemann_solver as ERS
 import Exact_Riemann_complete_solve as ERCS
+from pyinstrument import Profiler
 
-
-M_b = 3
+TVB_para = 0
+M_b = 2
 # minmod 函数
 def minmod(a,b,c,M=10,dx=1):
     bc_min = np.minimum(b*np.sign(a),c*np.sign(a))
     return a*(np.abs(a) <= M*dx**2)+(np.sign(a)*np.maximum(0,np.minimum(np.abs(a),bc_min)))*(np.abs(a) > M*dx**2)
 
 def bais(x,x_i,dx):
-    N = len(x)
-    B = np.zeros([M_b,N],dtype=float)
-    B[0,:] = 1*np.ones(N,dtype=float)
-    B[1,:] = (x-x_i)/(0.5*dx)
-    B[2,:] = ((x-x_i)/(0.5*dx))**2 -1/3
+    N_x = len(x)
+    B = np.zeros([M_b, N_x], dtype=float)
+    B[0, :] = 1 * np.ones(N_x, dtype=float)
+    match M_b:
+        case 2:
+            B[1, :] = (x - x_i) / (0.5 * dx)
+        case 3:
+            B[1, :] = (x - x_i) / (0.5 * dx)
+            B[2, :] = ((x - x_i) / (0.5 * dx)) ** 2 - 1 / 3
     return B
 
 def bais_x(x,x_i,dx):
-    N = len(x)
-    B = np.zeros([M_b,N],dtype=float)
-    B[1,:] = np.ones(N,dtype=float)/(0.5*dx)
-    B[2,:] = 2*((x-x_i)/(0.5*dx))*(np.ones(N,dtype=float)*1/(0.5*dx))
+    N_x = len(x)
+    B = np.zeros([M_b, N_x], dtype=float)
+    match M_b:
+        case 2:
+            B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
+        case 3:
+            B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
+            B[2, :] = 2*(x-x_i)*np.ones(N_x,dtype=float)/((0.5*dx)**2)
     return B
 
 def init_fluid_data(U_data, Ele_c):
@@ -51,6 +60,7 @@ def init_fluid_data(U_data, Ele_c):
             U_data[0,i] = rho
             U_data[1,i] = rho * u
             U_data[2,i] = P / (gamma - 1) + 0.5 * rho * u * u
+
 
 DIM = 1
 CFL = 0.1
@@ -95,6 +105,9 @@ wi *= 0.5
 
 t = 0
 is_stop = False
+
+profile = Profiler()
+profile.start()
 while (not is_stop):
     U_data_cp = U_data
     def step_forward(U_data,max_speed):
@@ -103,8 +116,8 @@ while (not is_stop):
         edge_bias_l = bais(point[1:],ele_centroid,ele_vol)
         Ul = np.zeros([DIM+2,n_edge],dtype=float)
         Ur = np.zeros([DIM+2,n_edge],dtype=float)
-        Ul[:,1:] = np.sum(edge_bias_l * U_data,axis=1)
-        Ur[:,0:-1] = np.sum(edge_bias_r * U_data,axis=1)
+        Ul[:,1:] = np.sum(edge_bias_l*U_data,axis=1)
+        Ur[:,0:-1] = np.sum(edge_bias_r*U_data,axis=1)
         # 周期边界条件
         # Ul[:,0] = Ul[:,-1]
         # Ur[:,-1] = Ur[:,0]
@@ -114,18 +127,19 @@ while (not is_stop):
         Fu_edge = np.zeros([DIM+2, n_edge],dtype=float)
         for i in range(n_edge):
             Ul1d = Fd1d.Fluid_1d(Ul[:,i])
-            Ur1d = Fd1d.Fluid_1d(Ur[:, i])
+            Ur1d = Fd1d.Fluid_1d(Ur[:,i])
             NF1d = NF.NumericalFlux(Ul1d,Ur1d)
             max_speed = max(max_speed, Ul1d.max_speed())
             max_speed = max(max_speed, Ur1d.max_speed())
             Fu_edge[:,i] = NF1d.LLF()
+            #Fu_edge[:,i] = Ul1d.flux()
         # 遍历每一个单元 然后在单元的内部计算增加量
         for i in range(n_ele):
             # 左右端点的坐标 和 基函数的值
-            point_lr = [ele_centroid[i]-0.5*ele_vol,ele_centroid[i]+0.5*ele_vol]
-            bais_lr = bais(point_lr,ele_centroid[i],ele_vol)
+            ele_point_lr = [ele_centroid[i]-0.5*ele_vol,ele_centroid[i]+0.5*ele_vol]
+            ele_bais_lr = bais(ele_point_lr,ele_centroid[i],ele_vol)
             # 计算边界上的通量
-            V1 = np.outer(Fu_edge[:,i+1],bais_lr[:,1])-np.outer(Fu_edge[:,i],bais_lr[:,0])
+            V1 = np.outer(Fu_edge[:,i+1],ele_bais_lr[:,1])-np.outer(Fu_edge[:,i],ele_bais_lr[:,0])
             '''
             1.取积分点
             2.计算基函数在积分点上的值
@@ -144,14 +158,17 @@ while (not is_stop):
             for j in range(W):
                 U1d_in = Fd1d.Fluid_1d(u[:,j])
                 FU1d = U1d_in.flux()
-                V2[:,:] -= ele_vol * np.outer(FU1d,bais_val_x_wi[:,j])
+                V2[0, :] -= ele_vol * FU1d[0]*bais_val_x_wi[:, j]
+                V2[1, :] -= ele_vol * FU1d[1]*bais_val_x_wi[:, j]
+                V2[2, :] -= ele_vol * FU1d[2]*bais_val_x_wi[:, j]
+                # V2[:,:] -= ele_vol * np.outer(FU1d,bais_val_x_wi[:,j])
 
             '''
             计算矩阵 M
             要改为右乘 矩阵M的逆
             '''
             M=(bais_val * wi) @ np.transpose(bais_val) * ele_vol
-            dU[:,:,i] = (V1+V2)@np.linalg.inv(M)
+            dU[:,:,i] = (V1+V2)/np.diagonal(M)
 
         return dU,max_speed
 
@@ -164,27 +181,28 @@ while (not is_stop):
         :param U_data:
         :return:
         '''
-        DUp = np.zeros([DIM+2,n_ele],dtype=float)
-        DUm = np.zeros([DIM + 2, n_ele], dtype=float)
-        DUp[:,0:-1] = U_data[:,0,1:]-U_data[:,0,0:-1]
-        DUm[:,1:] = U_data[:,0,1:]-U_data[:,0,0:-1]
+        DU_p = np.zeros([DIM+2,n_ele],dtype=float)
+        DU_m = np.zeros([DIM + 2, n_ele], dtype=float)
+        DU_p[:,0:-1] = U_data[:,0,1:]-U_data[:,0,0:-1]
+        DU_m[:,1:] = U_data[:,0,1:]-U_data[:,0,0:-1]
+        # 自然边界条件 空的
         # 重构单元边界的值
         # 1. 基函数 单元内的作用
         # 2. 组合成值
         # 3. 计算梯度: 减去 守恒量的值
         # 4. 限制梯度
         # 5. 根据限制梯度的值求线性代数方程组
-        ele_bias_p = bais(point[1:],ele_centroid,ele_vol)
-        Up = np.sum(ele_bias_p*U_data,axis=1)
+        ele_bias_r = bais(point[1:],ele_centroid,ele_vol)
+        U_ele_r = np.sum(ele_bias_r*U_data,axis=1)
         U0 = U_data[:,0,:]
-        dUp = Up - U0
+        dUp = U_ele_r - U0
         # dUp_mod = np.minimum(np.abs(dUp),np.abs(DUm))*((dUp*DUm)>0)
         # dUp_mod = np.minimum(np.abs(dUp_mod),np.abs(DUp))*((dUp*DUp)>0)
         # dUp_mod *= np.sign(dUp)
         # V1
         # dUp_mod = minmod(dUp,DUp,DUm,0,ele_vol)
         # V2 耗散大 但是稳定性好
-        dUp_mod = minmod(dUp, 0.5*DUp, 0.5*DUm, 0, ele_vol)
+        dUp_mod = minmod(dUp, DU_p, DU_m, 0, ele_vol)
 
         # 局部求解线性代数方程组 直接相等即可
         U_data[:,1,:] = dUp_mod
@@ -199,41 +217,57 @@ while (not is_stop):
         :param U_data:
         :return:
         '''
-        DUp = np.zeros([DIM+2,n_ele],dtype=float)
-        DUm = np.zeros([DIM + 2, n_ele], dtype=float)
-        DUp[:,0:-1] = U_data[:,0,1:]-U_data[:,0,0:-1]
-        DUm[:,1:] = U_data[:,0,1:]-U_data[:,0,0:-1]
+        DU_p = np.zeros([DIM+2,n_ele],dtype=float)
+        DU_m = np.zeros([DIM + 2, n_ele], dtype=float)
+        DU_p[:,0:-1] = U_data[:,0,1:]-U_data[:,0,0:-1]
+        DU_m[:,1:] = U_data[:,0,1:]-U_data[:,0,0:-1]
         # 重构单元边界的值
         # 1. 基函数 单元内的作用
         # 2. 组合成值
         # 3. 计算梯度: 减去 守恒量的值
         # 4. 限制梯度
         # 5. 根据限制梯度的值求线性代数方程组
-        ele_bias_p = bais(point[1:], ele_centroid, ele_vol)
-        ele_bias_m = bais(point[0:-1],ele_centroid,ele_vol)
-        Up = np.sum(ele_bias_p*U_data,axis=1)
-        Um = np.sum(ele_bias_m*U_data,axis=1)
-        U0 = U_data[:,0,:]
-        dUp = Up - U0
-        dUm = U0 - Um
-        # minmodDUpm = np.minimum(np.abs(DUp),np.abs(DUm))*((DUp*DUm)>0)
-        # dUp_mod = np.minimum(np.abs(dUp),np.abs(minmodDUpm))*((dUp*DUp)>0)
-        # dUm_mod = np.minimum(np.abs(dUm),np.abs(minmodDUpm))*((dUm*DUm)>0)
-        # dUp_mod *= np.sign(dUp)
-        # dUm_mod *= np.sign(dUm)
-        TVB_para = 0
-        dUp_mod = minmod(dUp,DUp,DUm,TVB_para,ele_vol)
-        dUm_mod = minmod(dUm,DUp,DUm,TVB_para,ele_vol)
-        # 局部求解线性代数方程组
-        Matrixinv=np.array([[1/2,-1/2],[3/4,3/4]])
+        bais_ele_l = bais(point[0:-1],ele_centroid,ele_vol)
+        bais_ele_r = bais(point[1:],ele_centroid,ele_vol)
+        # 单元边界上的重构值
+        U_ele_l = np.sum(bais_ele_l*U_data,axis=1)
+        U_ele_r = np.sum(bais_ele_r*U_data,axis=1)
+        # 单元内的守恒量
+        U_aver = U_data[:,0,:]
+        dUr = U_ele_r - U_aver
+        dUl = U_aver - U_ele_l
+        #基于特征变量的限制器
         for i in range(n_ele):
-            M = np.vstack((ele_bias_p[1:,i],ele_bias_m[1:,i]))
-            f_r = np.vstack((dUp_mod[:,i],-dUm_mod[:,i]))
-            #new_U_ele = np.linalg.solve(M,f_r)
-            new_U_ele = Matrixinv @ f_r
-            # 第一行 和 第二行 替换原来的值
-            U_data[:,1,i] = new_U_ele[0,:]
-            U_data[:,2,i] = new_U_ele[1,:]
+            #建立1D对象取出一些辅助变量
+            U1d = Fd1d.Fluid_1d(U_aver[:,i])
+            rho = U1d.rho
+            u=U1d.u
+            c=U1d.sound_speed()
+            p=U1d.p
+            H = (U_aver[2,i]+p)/rho
+            R = np.array([[1,1,1],[u-c,u,u+c],[H-u*c,0.5*u**2,H+u*c]])
+            R_inv = np.linalg.inv(R)
+            #调用minmod 函数来实现
+            dUr_mod = R@minmod(R_inv@dUr[:,i],R_inv@DU_p[:,i],R_inv@DU_m[:,i],TVB_para,ele_vol)
+            dUl_mod = R@minmod(R_inv@dUl[:,i],R_inv@DU_p[:,i],R_inv@DU_m[:,i],TVB_para,ele_vol)
+            # 解出来U的值
+            U_data[0, 1, i] = 0.5 * (dUr_mod[0] + dUl_mod[0])
+            U_data[0, 2, i] = (3 / 4) * (dUr_mod[0] - dUl_mod[0])
+            U_data[1, 1, i] = 0.5 * (dUr_mod[1] + dUl_mod[1])
+            U_data[1, 2, i] = (3 / 4) * (dUr_mod[1] - dUl_mod[1])
+            U_data[2, 1, i] = 0.5 * (dUr_mod[2] + dUl_mod[2])
+            U_data[2, 2, i] = (3 / 4) * (dUr_mod[2] - dUl_mod[2])
+            # U_data[1, 1, :] = 0.5 * (dUr_mod_rhou + dUl_mod_rhou)
+            # U_data[1, 2, :] = (3 / 4) * (dUr_mod_rhou - dUl_mod_rhou)
+            # U_data[2, 1, :] = 0.5 * (dUr_mod_E + dUl_mod_E)
+            # U_data[2, 2, :] = (3 / 4) * (dUr_mod_E - dUl_mod_E)
+        # dUr_mod_rho = minmod(dUr[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
+        # dUl_mod_rho = minmod(dUl[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
+        # dUr_mod_rhou = minmod(dUr[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
+        # dUl_mod_rhou = minmod(dUl[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
+        # dUr_mod_E = minmod(dUr[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
+        # dUl_mod_E = minmod(dUl[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
+        # 局部求解线性代数方程组
         return U_data
     max_speed = 0
     dU,max_speed = step_forward(U_data,max_speed)
@@ -244,30 +278,53 @@ while (not is_stop):
     t = t + dt
     # 一阶时间精度
     U_data = U_data - dt * dU
-    U_data = TVB_limiter1(U_data)
 
+    match M_b:
+        case 2:
+            U_data = TVB_limiter1(U_data)
+            dU, max_speed = step_forward(U_data, max_speed)
+            U_data = 0.5 * U_data_cp + 0.5 * (U_data - dt * dU)
+            U_data = TVB_limiter1(U_data)
+        case 3:
+            U_data = TVB_limiter2(U_data)
+            dU, max_speed = step_forward(U_data, max_speed)
+            U_data = 0.75 * U_data_cp + 0.25 * (U_data - dt * dU)
+            U_data = TVB_limiter2(U_data)
+            dU, max_speed = step_forward(U_data, max_speed)
+            U_data = (1 / 3) * U_data_cp + (2 / 3) * (U_data - dt * dU)
+            U_data = TVB_limiter2(U_data)
     # 二阶时间精度
+    # U_data = TVB_limiter1(U_data)
     # dU, max_speed = step_forward(U_data, max_speed)
     # U_data = 0.5*U_data_cp + 0.5*(U_data-dt*dU)
     # U_data = TVB_limiter1(U_data)
 
     # 三阶时间精度
-    U_data = 0.75*U_data_cp + 0.25*(U_data-dt*dU)
-    U_data = TVB_limiter2(U_data)
-    dU, max_speed = step_forward(U_data, max_speed)
-    U_data = (1 / 3) * U_data_cp + (2 / 3) * (U_data - dt * dU)
-    U_data = TVB_limiter2(U_data)
+    # U_data = TVB_limiter2(U_data)
+    #
+    # dU, max_speed = step_forward(U_data, max_speed)
+    # U_data = 0.75*U_data_cp + 0.25*(U_data-dt*dU)
+    # U_data = TVB_limiter2(U_data)
+    #
+    # dU, max_speed = step_forward(U_data, max_speed)
+    # U_data = (1 / 3) * U_data_cp + (2 / 3) * (U_data - dt * dU)
+    # U_data = TVB_limiter2(U_data)
+
+
+profile.stop()
+profile.print()
+
+# Bc = bais(ele_centroid, ele_centroid, ele_vol)
+# Rho = Bc[0,:]*U_data[0,0,:]
+# U = Bc[0,:]*U_data[1,0,:]/Rho
+# P = (gamma-1)*(Bc[0,:]*U_data[2,0,:]-0.5*Rho*(U**2))
+
 
 Bc = bais(ele_centroid, ele_centroid, ele_vol)
-U_out = np.sum(Bc*U_data,axis=0)
+Rho = np.sum(Bc[0,:]*U_data[0,:,:],axis=0)
+U = np.sum(Bc[0,:]*U_data[1,:,:],axis=0)/Rho
+P = (gamma-1)*(np.sum((Bc[0,:]*U_data[2,:,:]),axis=0) -0.5*Rho*(U**2))
 
-#Bc = bais(ele_centroid, ele_centroid, ele_vol)
-# Rho = np.sum(Bc[0,:]*U_data[0,:,:],axis=0)
-# U = np.sum(Bc[0,:]*U_data[1,:,:]/Rho,axis=0)
-# P = np.sum((gamma-1)*(Bc[0,:]*U_data[2,:,:]-0.5*Rho*(U**2)),axis=0)
-Rho = Bc[0,:]*U_data[0,0,:]
-U = Bc[0,:]*U_data[1,0,:]/Rho
-P = (gamma-1)*(Bc[0,:]*U_data[2,0,:]-0.5*Rho*(U**2))
 
 
 rho_L = 1.0

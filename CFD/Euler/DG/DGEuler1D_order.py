@@ -10,7 +10,7 @@ import NumericalFlux as NF
 sys.path.append("../../Riemann")
 
 
-TVB_para = 1
+TVB_para = 0
 M_b = 3
 # minmod 函数
 def minmod(a,b,c,M=10,dx=1):
@@ -224,28 +224,42 @@ while (not is_stop):
         U_aver = U_data[:,0,:]
         dUr = U_ele_r - U_aver
         dUl = U_aver - U_ele_l
+        #基于特征变量的限制器
+        for i in range(n_ele):
+            #建立1D对象取出一些辅助变量
+            U1d = Fd1d.Fluid_1d(U_aver[:,i])
+            rho = U1d.rho
+            u=U1d.u
+            c=U1d.sound_speed()
+            p=U1d.p
+            H = (U_aver[2,i]+p)/rho
+            R = np.array([[1,1,1],[u-c,u,u+c],[H-u*c,0.5*u**2,H+u*c]])
+            R_inv = np.linalg.inv(R)
+            #调用minmod 函数来实现
+            dUr_mod = R@minmod(R_inv@dUr[:,i],R_inv@DU_p[:,i],R_inv@DU_m[:,i],TVB_para,ele_vol)
+            dUl_mod = R@minmod(R_inv@dUl[:,i],R_inv@DU_p[:,i],R_inv@DU_m[:,i],TVB_para,ele_vol)
+            # 解出来U的值
+            U_data[0, 1, i] = 0.5 * (dUr_mod[0] + dUl_mod[0])
+            U_data[0, 2, i] = (3 / 4) * (dUr_mod[0] - dUl_mod[0])
+            U_data[1, 1, i] = 0.5 * (dUr_mod[1] + dUl_mod[1])
+            U_data[1, 2, i] = (3 / 4) * (dUr_mod[1] - dUl_mod[1])
+            U_data[2, 1, i] = 0.5 * (dUr_mod[2] + dUl_mod[2])
+            U_data[2, 2, i] = (3 / 4) * (dUr_mod[2] - dUl_mod[2])
         # dUr_mod = minmod(dUr,DU_p,DU_m,TVB_para,ele_vol)
         # dUl_mod = minmod(dUl,DU_p,DU_m,TVB_para,ele_vol)
-        dUr_mod_rho = minmod(dUr[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
-        dUl_mod_rho = minmod(dUl[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
-        dUr_mod_rhou = minmod(dUr[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
-        dUl_mod_rhou = minmod(dUl[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
-        dUr_mod_E = minmod(dUr[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
-        dUl_mod_E = minmod(dUl[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
-
-        # Matrixinv=np.array([[1/2,1/2],[3/4,-3/4]])
-        # f_rho = np.vstack((dUr_mod_rho, dUl_mod_rho))
-        # f_rhou = np.vstack((dUr_mod_rhou, dUl_mod_rhou))
-        # f_E = np.vstack((dUr_mod_E, dUl_mod_E))
-        # new_ele_rho = Matrixinv@f_rho
-        # new_ele_rhou = Matrixinv@f_rhou
-        # new_ele_E = Matrixinv@f_E
-        U_data[0,1,:] = 0.5*(dUr_mod_rho+dUl_mod_rho)
-        U_data[0,2,:] = (3/4)*(dUr_mod_rho-dUl_mod_rho)
-        U_data[1,1,:] = 0.5*(dUr_mod_rhou+dUl_mod_rhou)
-        U_data[1,2,:] = (3/4)*(dUr_mod_rhou-dUl_mod_rhou)
-        U_data[2,1,:] = 0.5*(dUr_mod_E+dUl_mod_E)
-        U_data[2,2,:] = (3/4)*(dUr_mod_E-dUl_mod_E)
+        # dUr_mod_rho = minmod(dUr[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
+        # dUl_mod_rho = minmod(dUl[0,:],DU_p[0,:],DU_m[0,:],TVB_para,ele_vol)
+        # dUr_mod_rhou = minmod(dUr[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
+        # dUl_mod_rhou = minmod(dUl[1,:],DU_p[1,:],DU_m[1,:],TVB_para,ele_vol)
+        # dUr_mod_E = minmod(dUr[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
+        # dUl_mod_E = minmod(dUl[2,:],DU_p[2,:],DU_m[2,:],TVB_para,ele_vol)
+        #
+        # U_data[0,1,:] = 0.5*(dUr_mod_rho+dUl_mod_rho)
+        # U_data[0,2,:] = (3/4)*(dUr_mod_rho-dUl_mod_rho)
+        # U_data[1,1,:] = 0.5*(dUr_mod_rhou+dUl_mod_rhou)
+        # U_data[1,2,:] = (3/4)*(dUr_mod_rhou-dUl_mod_rhou)
+        # U_data[2,1,:] = 0.5*(dUr_mod_E+dUl_mod_E)
+        # U_data[2,2,:] = (3/4)*(dUr_mod_E-dUl_mod_E)
         return U_data
     max_speed = 0
     dU,max_speed = step_forward(U_data,max_speed)
