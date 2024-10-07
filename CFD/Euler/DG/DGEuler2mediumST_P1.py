@@ -82,15 +82,13 @@ def interface_cell_idx_new(phi_input):
     ele_label_new[:] = point_label_add
     idx_out = np.where(ele_label_new == 1)[0][0]
     return idx_out
-def update_phase_info(x_i):
-    # 更新相的信息 相的体积和质心
+def update_phase_info(x_i): 
     for i in range(n_ele):
         match ele_label[i]:
             case 0:
                 phase_vol[0,i] = ele_vol
                 phase_vol[1,i] = 0
-                phase_centroid[0,i] = ele_centroid[i]
-                phase_centroid[1,i] = ele_centroid[i]
+                phase_centroid[:,i] = ele_centroid[i]*np.ones(2)
             case 1:
                 phase_vol[0,i] = math.fabs(x_i-point[i])
                 phase_vol[1,i] = math.fabs(point[i+1]-x_i)
@@ -99,8 +97,7 @@ def update_phase_info(x_i):
             case 2:
                 phase_vol[0,i] = 0
                 phase_vol[1,i] = ele_vol
-                phase_centroid[0,i] = ele_centroid[i]
-                phase_centroid[1,i] = ele_centroid[i]
+                phase_centroid[0,i] = ele_centroid[i]*np.ones(2)
 def update_phase_info_new(x_i):
     # 更新相的信息 相的体积和质心
     for i in range(n_ele):
@@ -108,8 +105,7 @@ def update_phase_info_new(x_i):
             case 0:
                 phase_vol_new[0,i] = ele_vol
                 phase_vol_new[1,i] = 0
-                phase_centroid_new[0,i] = ele_centroid[i]
-                phase_centroid_new[1,i] = ele_centroid[i]
+                phase_centroid[:,i] = ele_centroid[i]*np.ones(2)
             case 1:
                 phase_vol_new[0,i] = math.fabs(x_i-point[i])
                 phase_vol_new[1,i] = math.fabs(point[i+1]-x_i)
@@ -118,8 +114,7 @@ def update_phase_info_new(x_i):
             case 2:
                 phase_vol_new[0,i] = 0
                 phase_vol_new[1,i] = ele_vol
-                phase_centroid_new[0,i] = ele_centroid[i]
-                phase_centroid_new[1,i] = ele_centroid[i]
+                phase_centroid[:,i] = ele_centroid[i]*np.ones(2)
 def update_interface_info():
     # 更新界面单元的信息
     IC_v = np.sum(phase_vol[:, IC_idx - 1:IC_idx + 2],axis=1)
@@ -131,11 +126,11 @@ def update_interface_info_new():
     IC_c_n = np.sum(phase_centroid_new[:, IC_idx - 1:IC_idx + 2] * phase_vol_new[:, IC_idx - 1:IC_idx + 2],axis=1) / IC_v_n
     return IC_v_n,IC_c_n
 def compose_interface_val():
-    #组合界面单元上的值
+    # 将子单元上的多项式解组合到界面单元上去 
+    # 数学上的实现是求解线性代数方程组 子单元上的守恒量与界面单元上基函数积分之后作为右端项 右乘刚度矩阵的逆
     for phase in range(2):
         Uf = np.zeros([DIM + 2, M_b, 3], dtype=float)
         for i in range(IC_idx - 1, IC_idx + 2):
-            # 子单元上的积分点
             if phase_vol[phase, i] > eps:
                 x_int_sc = 0.5 * phase_vol[phase, i] * x_int_ref + phase_centroid[phase, i]
                 ele_bias_sc = bais(x_int_sc, phase_centroid[phase, i], phase_vol[phase, i])
@@ -147,12 +142,13 @@ def compose_interface_val():
         M = (ele_bias_IC * wi) @ np.transpose(ele_bias_IC) * IC_vol[phase]
         U_IC[:, :, phase] = np.sum(Uf, axis=2) / np.diagonal(M)
 def updata_val_backup(p_v,p_c):
-    #先计算临时界面单元的体积和重心
+    '''
+    备份t^n时刻的解 其参与到更新 后面步更新数值解上去
+    '''
     temp_IC_v = np.sum(p_v[:,IC_idx_new-1:IC_idx_new+2],axis=1)
     temp_IC_c = np.sum(p_c[:,IC_idx_new-1:IC_idx_new+2]*p_v[:,IC_idx_new-1:IC_idx_new+2],axis=1)/temp_IC_v
     temp_IC_v_n = np.sum(phase_vol_new[:,IC_idx_new-1:IC_idx_new+2],axis=1)
     temp_IC_c_n = np.sum(phase_centroid_new[:,IC_idx_new-1:IC_idx_new+2]*phase_vol_new[:,IC_idx_new-1:IC_idx_new+2],axis=1)/temp_IC_v_n
-    #更新临时界面单元上的值
     for phase in range(2):
         Uf = np.zeros([DIM+2,M_b,3],dtype=float)
         for i in range(IC_idx_new-1,IC_idx_new+2):
@@ -165,14 +161,13 @@ def updata_val_backup(p_v,p_c):
         ele_bias_IC = bais(x_int_IC, temp_IC_c[phase], temp_IC_v[phase])
         M = (ele_bias_IC * wi) @ np.transpose(ele_bias_IC) * temp_IC_v[phase]
         U_IC_cp[:,:,phase] = np.sum(Uf,axis=2)/np.diagonal(M)
-        #
         x_int_IC_n = 0.5 * temp_IC_v_n[phase] * x_int_ref + temp_IC_c_n[phase]
         ele_bias_IC_n = bais(x_int_IC_n, temp_IC_c_n[phase], temp_IC_v_n[phase])
         M_n = (ele_bias_IC_n * wi) @ np.transpose(ele_bias_IC_n) * temp_IC_v_n[phase]
         U_IC_cp[:,:,phase] = (U_IC_cp[:,:,phase]*np.diagonal(M))/np.diagonal(M_n)
 
 def decompose_interface_val():
-    #分解界面单元上的值到普通单元上去
+    # 组合界面的反向操作 在每个子单元上求解线性代数方程组
     for phase in range(2):
         for i in range(IC_idx - 1, IC_idx + 2):
             # 取出总体的基函数 然后分配到单元上去
@@ -187,7 +182,7 @@ def decompose_interface_val():
                 U_data[:,:,i,phase] = 0
 
 def update_interface_val1(dt,dU_ic):
-    # 更新界面单元上的守恒量
+    # 更新界面单元上守恒量的 SSPRK 格式的第一步
     for phase in range(2):
         x_int_IC = 0.5 * IC_vol[phase] * x_int_ref + IC_centroid[phase]
         ele_bias_IC = bais(x_int_IC, IC_centroid[phase], IC_vol[phase])
@@ -198,7 +193,7 @@ def update_interface_val1(dt,dU_ic):
         U_IC[:,:,phase] = (U_IC[:,:,phase]*np.diagonal(M)-dt*dU_ic[:,:,phase])/np.diagonal(M_n)
 
 def update_interface_val2(dt,dU_ic):
-    #更新界面单元上的守恒量 是二阶格式的第二步
+    # 更新界面单元上守恒量的 SSPRK2 格式的第二步
     for phase in range(2):
         x_int_IC = 0.5 * IC_vol[phase] * x_int_ref + IC_centroid[phase]
         ele_bias_IC = bais(x_int_IC, IC_centroid[phase], IC_vol[phase])
@@ -209,7 +204,8 @@ def update_interface_val2(dt,dU_ic):
         U_IC[:,:,phase] = 0.5*(U_IC_cp[:,:,phase]*np.diagonal(M)+U_IC[:,:,phase]*np.diagonal(M)-dt*dU_ic[:,:,phase])/np.diagonal(M_n)
 
 def TVB_limiter1(U_data,U_IC):
-    #P1 TVB 限制器
+    #P1 TVB 限制器 由于数值解在边界上与重心的差值是对称的 只需要计算一个边界上的值即可
+    #将其改造为与P2 元类似的过程
     DU_p= np.zeros([DIM+2,n_ele,2],dtype=float)
     DU_m= np.zeros([DIM+2,n_ele,2],dtype=float)
     DU_p[:,0:-1,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
@@ -241,7 +237,6 @@ def TVB_limiter1(U_data,U_IC):
     dUp_IC1_mod = minmod(dUp_IC1,U_IC[:,0,1]-U_IC[:,0,0],DU_m[:,IC_idx+2,1],M_para,IC_vol_new[1])
     U_IC[:,1,0] = dUp_IC0_mod
     U_IC[:,1,1] = dUp_IC1_mod
-    # 限制新的体积
 def TVB_limiter1_subcell(U_data):
     #subcell limiter
     # 只针对子单元上的值进行限制 这个只能分开进行
