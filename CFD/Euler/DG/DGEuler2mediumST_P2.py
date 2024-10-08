@@ -12,9 +12,10 @@ import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import sys
 sys.path.append("../")
+sys.path.append("../../Riemann/code")
 import Fluid1d as Fd1d
 import NumericalFlux as NF
-sys.path.append("../../Riemann")
+
 import Fluid as Fdexact
 import Exact_Riemann_solver as ERS
 import Exact_Riemann_complete_solve as ERCS
@@ -28,42 +29,26 @@ def bais(x,x_i,dx):
     N_x = len(x)
     B = np.zeros([M_b, N_x], dtype=float)
     B[0, :] = 1 * np.ones(N_x, dtype=float)
-    match M_b:
-        case 2:
-            B[1, :] = (x - x_i) / (0.5 * dx)
-        case 3:
-            B[1, :] = (x - x_i) / (0.5 * dx)
-            B[2, :] = ((x - x_i) / (0.5 * dx)) ** 2 - 1 / 3
+    B[1, :] = (x - x_i) / (0.5 * dx)
+    B[2, :] = ((x - x_i) / (0.5 * dx)) ** 2 - 1 / 3
     return B
 
 def bais_single(x,x_i,dx):
     B = np.zeros(M_b, dtype=float)
     B[0] = 1
-    match M_b:
-        case 2:
-            B[1] = (x - x_i) / (0.5 * dx)
-        case 3:
-            B[1] = (x - x_i) / (0.5 * dx)
-            B[2] = ((x - x_i) / (0.5 * dx)) ** 2 - 1 / 3
+    B[1] = (x - x_i) / (0.5 * dx)
+    B[2] = ((x - x_i) / (0.5 * dx)) ** 2 - 1 / 3
     return B
 def bais_x(x,x_i,dx):
     N_x = len(x)
     B = np.zeros([M_b, N_x], dtype=float)
-    match M_b:
-        case 2:
-            B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
-        case 3:
-            B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
-            B[2, :] = 2*(x-x_i)*np.ones(N_x,dtype=float)/((0.5*dx)**2)
+    B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
+    B[2, :] = 2*(x-x_i)*np.ones(N_x,dtype=float)/((0.5*dx)**2)
     return B
 def bais_x_single(x,x_i,dx):
     B = np.zeros(M_b, dtype=float)
-    match M_b:
-        case 2:
-            B[1] = 1 / (0.5 * dx)
-        case 3:
-            B[1] = 1 / (0.5 * dx)
-            B[2] = 2*(x-x_i)/((0.5*dx)**2)
+    B[1] = 1 / (0.5 * dx)
+    B[2] = 2*(x-x_i)/((0.5*dx)**2)
     return B
 # 两相的初值
 def init_fluid_data(U_data,Ele_c):
@@ -73,18 +58,18 @@ def init_fluid_data(U_data,Ele_c):
             rho = 1.0
             u = 0
             P = 1.0
-            U_data[0,:,i,0] = rho
-            U_data[1,:,i,0] = rho * u
-            U_data[2,:,i,0] = P / (gamma0 - 1) + 0.5 * rho * u * u
+            U_data[0,0,i,0] = rho
+            U_data[1,0,i,0] = rho * u
+            U_data[2,0,i,0] = P / (gamma0 - 1) + 0.5 * rho * u * u
             U_data[:,:,i,1] = 0
         else:
             rho = 0.125
             u = 0
             P = 0.1
             U_data[:,:,i,0] = 0.0
-            U_data[0,:,i,1] = rho
-            U_data[1,:,i,1] = rho * u
-            U_data[2,:,i,1] = P / (gamma1 - 1) + 0.5 * rho * u * u
+            U_data[0,0,i,1] = rho
+            U_data[1,0,i,1] = rho * u
+            U_data[2,0,i,1] = P / (gamma1 - 1) + 0.5 * rho * u * u
 def interface_cell_idx(phi_input):
     # 标记界面点和界面单元 小于等于0的点是相0 大于0的点是相1
     N_edge = len(phi_input)
@@ -103,42 +88,28 @@ def interface_cell_idx_new(phi_input):
     return idx_out
 def update_phase_info(x_i):
     # 更新相的信息 相的体积和质心
+    phase_centroid[0,:] = ele_centroid
+    phase_centroid[1,:] = ele_centroid
+    phase_vol[0,:] = ele_vol*(ele_label<1)
+    phase_vol[1,:] = ele_vol*(ele_label>1)
     for i in range(n_ele):
-        match ele_label[i]:
-            case 0:
-                phase_vol[0,i] = ele_vol
-                phase_vol[1,i] = 0
-                phase_centroid[0,i] = ele_centroid[i]
-                phase_centroid[1,i] = ele_centroid[i]
-            case 1:
-                phase_vol[0,i] = math.fabs(x_i-point[i])
-                phase_vol[1,i] = math.fabs(point[i+1]-x_i)
-                phase_centroid[0,i] = (x_i + point[i])/2
-                phase_centroid[1,i] = (point[i+1] + x_i)/2
-            case 2:
-                phase_vol[0,i] = 0
-                phase_vol[1,i] = ele_vol
-                phase_centroid[0,i] = ele_centroid[i]
-                phase_centroid[1,i] = ele_centroid[i]
+        if ele_label[i] == 1:
+            phase_vol[0,i] = math.fabs(x_i-point[i])
+            phase_vol[1,i] = math.fabs(point[i+1]-x_i)
+            phase_centroid[0,i] = (x_i + point[i])/2
+            phase_centroid[1,i] = (point[i+1] + x_i)/2
 def update_phase_info_new(x_i):
     # 更新相的信息 相的体积和质心
+    phase_centroid_new[0,:] = ele_centroid
+    phase_centroid_new[1, :] = ele_centroid
+    phase_vol_new[0,:] = ele_vol*(ele_label_new<1)
+    phase_vol_new[1,:] = ele_vol*(ele_label_new>1)
     for i in range(n_ele):
-        match ele_label_new[i]:
-            case 0:
-                phase_vol_new[0,i] = ele_vol
-                phase_vol_new[1,i] = 0
-                phase_centroid_new[0,i] = ele_centroid[i]
-                phase_centroid_new[1,i] = ele_centroid[i]
-            case 1:
-                phase_vol_new[0,i] = math.fabs(x_i-point[i])
-                phase_vol_new[1,i] = math.fabs(point[i+1]-x_i)
-                phase_centroid_new[0,i] = (x_i + point[i])/2
-                phase_centroid_new[1,i] = (point[i+1] + x_i)/2
-            case 2:
-                phase_vol_new[0,i] = 0
-                phase_vol_new[1,i] = ele_vol
-                phase_centroid_new[0,i] = ele_centroid[i]
-                phase_centroid_new[1,i] = ele_centroid[i]
+        if ele_label_new[i]==1:
+            phase_vol_new[0,i] = math.fabs(x_i-point[i])
+            phase_vol_new[1,i] = math.fabs(point[i+1]-x_i)
+            phase_centroid_new[0,i] = (x_i + point[i])/2
+            phase_centroid_new[1,i] = (point[i+1] + x_i)/2
 
 def update_interface_info():
     # 更新界面单元的信息
@@ -582,8 +553,8 @@ if __name__ == '__main__':
     # 限制器参数 TVM
     M_para = 0
     M_b = 3
-    Nx = 200
-    max_t = 0.05
+    Nx = 100
+    max_t = 0.15
     DIM = 1
     CFL = 0.1
     x_min = 0
@@ -760,7 +731,7 @@ Rho = np.maximum(Rho0,Rho1)
 
 plt.figure()
 plt.plot(x+0.5,rho,label='Exact')
-plt.plot(ele_centroid,Rho,'*-',label='DG P1')
+plt.plot(ele_centroid,Rho,'*-',label='DG P2 100')
 plt.legend()
 plt.show()
 plt.clf()

@@ -48,24 +48,27 @@ def bais_x_single(x,x_i,dx):
 # 两相的初值
 def init_fluid_data(U_data,Ele_c):
     for i in range(n_ele):
+        x_int = 0.5 * ele_vol * x_int_ref + ele_centroid[i]
+        B = bais(x_int, ele_centroid[i], ele_vol)
+        M = (B * wi) @ np.transpose(B) * ele_vol
+        gamma = 1.4
+        rho_ele = 1 + 0.2 * np.sin(np.pi * x_int)
+        m_ele = rho_ele * 1
+        E_ele = (1 / (gamma - 1)) + 0.5 * rho_ele * (1 ** 2)
+        rho_f = ele_vol * np.dot(B * rho_ele, wi)
+        m_f = ele_vol * np.dot(B * 1 * m_ele, wi)
+        E_f = ele_vol * np.dot(B * E_ele, wi)
         # 初始时刻界面的位置在 0.5
         if Ele_c[i] < 0.5:
-            rho = 1.0
-            u = 0
-            P = 1.0
-            U_data[0,0,i,0] = rho
-            U_data[1,0,i,0] = rho * u
-            U_data[2,0,i,0] = P / (gamma0 - 1) + 0.5 * rho * u * u
+            U_data[0,:,i,0] = rho_f/np.diagonal(M)
+            U_data[1,:,i,0] = m_f/np.diagonal(M)
+            U_data[2,:,i,0] = E_f/np.diagonal(M)
             U_data[:,:,i,1] = 0
         else:
-            rho = 0.125
-            u = 0
-            P = 0.1
-            U_data[:,:,i,0] = 0.0
-            U_data[0,0,i,1] = rho
-            U_data[1,0,i,1] = rho * u
-            U_data[2,0,i,1] = P / (gamma1 - 1) + 0.5 * rho * u * u
-
+            U_data[:,:,i,0] = 0
+            U_data[0,:,i,1] = rho_f/np.diagonal(M)
+            U_data[1,:,i,1] = m_f/np.diagonal(M)
+            U_data[2,:,i,1] = E_f/np.diagonal(M)
 def interface_cell_idx(phi_input):
     # 标记界面点和界面单元 小于等于0的点是相0 大于0的点是相1
     N_edge = len(phi_input)
@@ -204,8 +207,8 @@ def TVB_limiter1(U_data,U_IC):
     DU_p[:,0:-1,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
     DU_m[:,1:,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
     # 自然的边界条件
-    DU_p[:,-1,:] = 0
-    DU_m[:,0,:] = 0
+    DU_p[:,-1,-1] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
+    DU_m[:,0,0] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
     #靠近界面单元上的值 单独处理
     DU_p[:,IC_idx-2,0] = U_IC[:,0,0] - U_data[:,0,IC_idx-2,0]
     DU_m[:,IC_idx+2,1] = U_data[:,0,IC_idx+2,1] - U_IC[:,0,1]
@@ -215,7 +218,6 @@ def TVB_limiter1(U_data,U_IC):
     U_ele_r1 = np.sum(ele_bias_r * U_data[:,:,:,1], axis=1)
     dUp0 = U_ele_r0 - U_data[:,0,:,0]
     dUp1 = U_ele_r1 - U_data[:,0,:,1]
-    # 在两块区域上分别进行重构 查找
     dUp_mod0 = minmod(dUp0,DU_p[:,:,0],DU_m[:,:,0],M_para,ele_vol)
     dUp_mod1 = minmod(dUp1,DU_p[:,:,1],DU_m[:,:,1],M_para,ele_vol)
     U_data[:,1,0:IC_idx-1,0] = dUp_mod0[:,0:IC_idx-1]
@@ -301,8 +303,8 @@ def get_flux(U_data,max_speed):
     Ur[:, IC_idx - 1] = np.sum(edge_bias_r_IC0 * U_IC[:,:,0], axis=1)
     Ul[:, IC_idx + 2] = np.sum(edge_bias_l_IC1 * U_IC[:,:,1], axis=1)
     # 周期边界
-    Ul[:, 0] = Ur[:, 0]
-    Ur[:, -1] = Ul[:, -1]
+    Ul[:, 0] = Ul[:, -1]
+    Ur[:, -1] = Ur[:, 0]
     # 计算通量
     Fu_edge = np.zeros([DIM + 2, n_edge], dtype=float)
     for i in range(n_edge):
@@ -374,14 +376,15 @@ def get_flux(U_data,max_speed):
 
 #建立主函数的
 if __name__ == '__main__':
+    # 限制器参数 TVM
     M_para = 0
     M_b = 2
-    Nx = 100
-    max_t = 0.15
+    Nx = 80
+    max_t = 1.0
     DIM = 1
     CFL = 0.1
     x_min = 0
-    x_max = 1
+    x_max = 2
     eps = 1e-12
     # 流体的参数信息
     max_speed = 0
@@ -394,6 +397,13 @@ if __name__ == '__main__':
     n_edge = np.shape(point)[0]
     n_ele = n_edge - 1
     ele_vol = (x_max - x_min) / n_ele
+    # 单元之间的对应关系
+    ele2edge = np.array([np.arange(0, n_edge - 1), np.arange(1, n_edge)])
+    ele2edge = ele2edge.transpose()
+    ele2point = ele2edge
+    edge2cell = np.array([np.arange(-1, n_ele), np.arange(0, n_ele + 1)])
+    edge2cell[-1, -1] = -1
+    edge2cell = edge2cell.transpose()
     ele_centroid = 0.5 * (point[0:-1] + point[1:])
     # 积分点的信息
     W = 4
@@ -401,6 +411,7 @@ if __name__ == '__main__':
     wi *= 0.5
     # 对数据进行初始化
     U_data = np.zeros([DIM+2,M_b,Nx,2],dtype=float)
+    U_data_cp = np.zeros([DIM+2,M_b,Nx,2],dtype=float)
     init_fluid_data(U_data,ele_centroid)
     '''
     界面相关的几何信息
@@ -413,6 +424,7 @@ if __name__ == '__main__':
     ele_label_new = -np.ones(n_ele, dtype=int)
     # 存界面单元的值
     U_IC = np.zeros([DIM+2,M_b,2],dtype=float)
+    U_IC_cp = np.zeros([DIM+2,M_b,2],dtype=float)
     # 界面单元的体积和质心
     IC_vol = np.zeros(2, dtype=float)
     IC_centroid = np.zeros(2, dtype=float)
@@ -438,8 +450,7 @@ if __name__ == '__main__':
     iter = 0
     while (not is_stop):
         # 备份解
-        U_data_cp = U_data.copy()
-        U_IC_cp = U_IC.copy()
+        U_data_cp = U_data
         x_I_cp = x_I
         # 确定界面的指标 更新相信息
         IC_idx = interface_cell_idx(phi)
@@ -479,7 +490,7 @@ if __name__ == '__main__':
         # 重新分配守恒量 间断起见直接赋值吧
         # 在界面没有移动之前 更新备份解的值
         updata_val_backup()
-        phi = phi_new.copy()
+        phi = phi_new
         x_I = x_I_new
         IC_idx = IC_idx_new
 
@@ -512,32 +523,36 @@ if __name__ == '__main__':
         x_I = x_I_new
         IC_idx = IC_idx_new
 
-        # if iter ==0:
+        # if iter ==1:
         #     break
         # iter += 1
-        # print(iter)
-rho_L = 1.0
-u_L = 0.0
-p_L = 1.0
-gamma_L = 1.4
-p_inf_L = 0.0
-# right data
-rho_R = 0.125
-u_R = 0.0
-p_R = 0.1
-gamma_R = 1.4
-p_inf_R = 0.0
-x_L = -0.5
-x_R = 0.5
-maxit = 1000
-N=1000
-WL = Fdexact.Fluid(rho_L,u_L,p_L,gamma_L,p_inf_L)
-WR = Fdexact.Fluid(rho_R,u_R,p_R,gamma_R,p_inf_R)
-ERS_solver = ERS.ExactRiemannSolver(WL,WR,eps,maxit)
-[p_star,u_star]=ERS_solver.solver()
-Complete_solver = ERCS.Riemann_Complete_solve(p_star,u_star,WL,WR,t,x_L,x_R,N)
-[x,rho,u,p] = Complete_solver.solve()
+def rho_exact(x,t):
+    return 1+0.2*np.sin(np.pi*(x-t))
 
+
+x_int_ref, wi = roots_legendre(4)
+wi *= 0.5
+sumErrorL1 = 0
+sumErrorLinf = 0
+for i in range(n_ele):
+    # 在积分点上计算误差 并求和
+    x_int = 0.5 * ele_vol * x_int_ref + ele_centroid[i] # 积分点
+    B = bais(x_int, ele_centroid[i], ele_vol)
+    rho_ele0 = U_data[0,:,i,0]@B
+    rho_ele1 = U_data[0,:,i,1]@B
+    rho_exact_ele = rho_exact(x_int,t)
+    temp1 = 0
+    for j in range(len(x_int)):
+        if x_I-x_int[j]>0:
+            temp1 += np.abs(rho_ele0[j]-rho_exact_ele[j])*wi[j]*ele_vol
+            sumErrorLinf = max(sumErrorLinf,np.abs(rho_ele0[j]-rho_exact_ele[j]))
+        else:
+            temp1 += np.abs(rho_ele1[j]-rho_exact_ele[j])*wi[j]*ele_vol
+            sumErrorLinf = max(sumErrorLinf, np.abs(rho_ele1[j] - rho_exact_ele[j]))
+    sumErrorL1 += temp1
+
+print('sum_errorL1:'+str(sumErrorL1))
+print('sum_errorLinf:'+str(sumErrorLinf))
 
 #输出结果的展示
 Bc = bais(ele_centroid, ele_centroid, ele_vol)
@@ -546,8 +561,10 @@ Rho1 = np.sum(Bc[0,:]*U_data[0,:,:,1],axis=0)
 Rho = np.maximum(Rho0,Rho1)
 
 plt.figure()
-plt.plot(x+0.5,rho,label='Exact')
-plt.plot(ele_centroid,Rho,'*-',label='DG P1 100')
+plt.plot(ele_centroid,rho_exact(ele_centroid,t),label='Exact')
+plt.plot(ele_centroid,Rho,'*-',label='DG P1')
+plt.axvline(x_I)
 plt.legend()
 plt.show()
 plt.clf()
+
