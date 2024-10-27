@@ -1,0 +1,105 @@
+{
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "SPRINGLERarticle",
+      "tools": [
+        "pdflatex",
+        "bibtex",
+        "pdflatex",
+        "pdflatex"
+      ]
+    },
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-pdf",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "xelatex",
+      "command": "xelatex",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "pdflatex",
+      "command": "pdflatex",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "bibtex",
+      "command": "bibtex",
+      "args": [
+        "%DOCFILE%"
+      ]
+    },
+    {
+      "name": "biber",
+      "command": "biber",
+      "args": [
+        "%DOCFILE%"
+      ]
+    }
+  ],
+  "latex-workshop.latex.clean.fileTypes": [
+    "*.aux",
+    "*.bbl",
+    "*.blg",
+    "*.idx",
+    "*.ind",
+    "*.lof",
+    "*.lot",
+    "*.out",
+    "*.toc",
+    "*.acn",
+    "*.acr",
+    "*.alg",
+    "*.glg",
+    "*.glo",
+    "*.gls",
+    "*.ist",
+    "*.fls",
+    "*.log",
+    "*.fdb_latexmk"
+  ],
+  "latex-workshop.message.warning.show": false,
+  "commentTranslate.hover.enabled": true,
+  "latex-workshop.showContextMenu": true,
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.intellisense.package.enabled": true,
+  "latex-workshop.latex.autoClean.run": "onFailed", //编译失败自动清理
+  "latex-workshop.view.pdf.internal.synctex.keybinding": "double-click", //双击左键从pdf跳转到文件中
+  //外部文件查看
+  "latex-workshop.view.pdf.viewer": "external",
+  "latex-workshop.view.pdf.ref.viewer": "auto",
+  "latex-workshop.view.pdf.external.viewer.command": "C:/Users/yuxingchun/AppData/Local/SumatraPDF/SumatraPDF.exe",
+  "latex-workshop.view.pdf.external.viewer.args": [
+    "%PDF%"
+  ],
+  "latex-workshop.view.pdf.external.synctex.command": "C:/Users/yuxingchun/AppData/Local/SumatraPDF/SumatraPDF.exe",
+  "latex-workshop.view.pdf.external.synctex.args": [
+    "-forward-search",
+    "%LINE%",
+    "%TEX%",
+    "-reuse-instance",
+    "-inverse-search",
+    "\"C:/Users/yuxingchun/AppData/Local/Programs/Microsoft VS Code/Code.exe \" \"C:/Users/yuxingchun/AppData/Local/Programs/Microsoft VS Code/resources/app/out/cli.js\"  -r -g \"%f:%l\"",
+    "%PDF%"
+  ]
+}

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import sys
 sys.path.append("../")
-sys.path.append("../../Riemann/code")
+sys.path.append("../../Riemann")
 import Fluid1d as Fd1d
 import NumericalFlux as NF
 
@@ -28,7 +28,6 @@ def bais(x,x_i,dx):
     B[0, :] = 1 * np.ones(N_x, dtype=float)
     B[1, :] = (x - x_i) / (0.5 * dx)
     return B
-
 def bais_single(x,x_i,dx):
     B = np.zeros(M_b, dtype=float)
     B[0] = 1
@@ -39,7 +38,6 @@ def bais_x(x,x_i,dx):
     B = np.zeros([M_b, N_x], dtype=float)
     B[1, :] = np.ones(N_x, dtype=float) / (0.5 * dx)
     return B
-
 def bais_x_single(x,x_i,dx):
     B = np.zeros(M_b, dtype=float)
     B[1] = 1 / (0.5 * dx)
@@ -138,21 +136,21 @@ def compose_interface_val():
         M = (ele_bias_IC * wi) @ np.transpose(ele_bias_IC) * IC_vol[phase]
         U_IC[:, :, phase] = np.sum(Uf, axis=2) / np.diagonal(M)
 
-def updata_val_backup():
+def updata_val_backup(p_v,p_c):
     #先计算临时界面单元的体积和重心
-    temp_IC_v = np.sum(phase_vol[:,IC_idx_new-1:IC_idx_new+2],axis=1)
-    temp_IC_c = np.sum(phase_centroid[:,IC_idx_new-1:IC_idx_new+2]*phase_vol[:,IC_idx_new-1:IC_idx_new+2],axis=1)/temp_IC_v
+    temp_IC_v = np.sum(p_v[:,IC_idx_new-1:IC_idx_new+2],axis=1)
+    temp_IC_c = np.sum(p_c[:,IC_idx_new-1:IC_idx_new+2]*p_v[:,IC_idx_new-1:IC_idx_new+2],axis=1)/temp_IC_v
     temp_IC_v_n = np.sum(phase_vol_new[:,IC_idx_new-1:IC_idx_new+2],axis=1)
     temp_IC_c_n = np.sum(phase_centroid_new[:,IC_idx_new-1:IC_idx_new+2]*phase_vol_new[:,IC_idx_new-1:IC_idx_new+2],axis=1)/temp_IC_v_n
     #更新临时界面单元上的值
     for phase in range(2):
         Uf = np.zeros([DIM+2,M_b,3],dtype=float)
         for i in range(IC_idx_new-1,IC_idx_new+2):
-            if phase_vol[phase,i] > eps:
-                x_int_sc = 0.5 * phase_vol[phase,i] * x_int_ref + phase_centroid[phase,i]
-                ele_bias_sc = bais(x_int_sc, phase_centroid[phase,i], phase_vol[phase,i])
+            if p_v[phase,i] > eps:
+                x_int_sc = 0.5 * p_v[phase,i] * x_int_ref + p_c[phase,i]
+                ele_bias_sc = bais(x_int_sc, p_c[phase,i], p_v[phase,i])
                 ele_bias_sc_IC = bais(x_int_sc, temp_IC_c[phase], temp_IC_v[phase])
-                Uf[:,:,i-(IC_idx_new-1)] = (U_data_cp[:,:,i,phase] @ ele_bias_sc) @ np.transpose(ele_bias_sc_IC*wi) * phase_vol[phase,i]
+                Uf[:,:,i-(IC_idx_new-1)] = (U_data_cp[:,:,i,phase] @ ele_bias_sc) @ np.transpose(ele_bias_sc_IC*wi) * p_v[phase,i]
         x_int_IC = 0.5 * temp_IC_v[phase] * x_int_ref + temp_IC_c[phase]
         ele_bias_IC = bais(x_int_IC, temp_IC_c[phase], temp_IC_v[phase])
         M = (ele_bias_IC * wi) @ np.transpose(ele_bias_IC) * temp_IC_v[phase]
@@ -201,7 +199,7 @@ def update_interface_val2(dt,dU_ic):
         U_IC[:,:,phase] = 0.5*(U_IC_cp[:,:,phase]*np.diagonal(M)+U_IC[:,:,phase]*np.diagonal(M)-dt*dU_ic[:,:,phase])/np.diagonal(M_n)
 
 
-def TVB_limiter1(U_data,U_IC):
+def MINMOD_limiter(U_data,U_IC):
     DU_p= np.zeros([DIM+2,n_ele,2],dtype=float)
     DU_m= np.zeros([DIM+2,n_ele,2],dtype=float)
     DU_p[:,0:-1,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
@@ -218,10 +216,13 @@ def TVB_limiter1(U_data,U_IC):
     U_ele_r1 = np.sum(ele_bias_r * U_data[:,:,:,1], axis=1)
     dUp0 = U_ele_r0 - U_data[:,0,:,0]
     dUp1 = U_ele_r1 - U_data[:,0,:,1]
-    dUp_mod0 = minmod(dUp0,DU_p[:,:,0],DU_m[:,:,0],M_para,ele_vol)
-    dUp_mod1 = minmod(dUp1,DU_p[:,:,1],DU_m[:,:,1],M_para,ele_vol)
-    U_data[:,1,0:IC_idx-1,0] = dUp_mod0[:,0:IC_idx-1]
-    U_data[:,1,IC_idx+2:,1] = dUp_mod1[:,IC_idx+2:]
+    # 在每个单元上施加限制器
+    for i in range(IC_idx-1):
+        dUp_mod0 = minmod(dUp0[:,i],DU_p[:,i,0],DU_m[:,i,0],M_para,ele_vol)
+        U_data[:,1,i,0] = dUp_mod0
+    for i in range(IC_idx+2,n_ele):
+        dUp_mod1 = minmod(dUp1[:,i],DU_p[:,i,1],DU_m[:,i,1],M_para,ele_vol)
+        U_data[:,1,i,1] = dUp_mod1
     # 界面单元上单独的限制器
     U0IC0 = U_IC[:,0,0]
     U0IC1 = U_IC[:,0,1]
@@ -234,6 +235,116 @@ def TVB_limiter1(U_data,U_IC):
     # 代入限制器函数
     dUp_IC0_mod = minmod(dUp_IC0,DU_p[:,IC_idx-2,0],U_IC[:,0,1]-U_IC[:,0,0],M_para,IC_vol_new[0])
     dUp_IC1_mod = minmod(dUp_IC1,U_IC[:,0,1]-U_IC[:,0,0],DU_m[:,IC_idx+2,1],M_para,IC_vol_new[1])
+    U_IC[:,1,0] = dUp_IC0_mod
+    U_IC[:,1,1] = dUp_IC1_mod
+
+def MUSCL_limiter(U_data,U_IC):
+    DU_p= np.zeros([DIM+2,n_ele,2],dtype=float)
+    DU_m= np.zeros([DIM+2,n_ele,2],dtype=float)
+    DU_p[:,0:-1,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
+    DU_m[:,1:,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
+    # 自然的边界条件
+    DU_p[:,-1,-1] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
+    DU_m[:,0,0] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
+    #靠近界面单元上的值 单独处理
+    DU_p[:,IC_idx-2,0] = U_IC[:,0,0] - U_data[:,0,IC_idx-2,0]
+    DU_m[:,IC_idx+2,1] = U_data[:,0,IC_idx+2,1] - U_IC[:,0,1]
+    # 单元的边界上施加限制 单边的
+    ele_bias_r = bais(point[1:], ele_centroid, ele_vol)
+    U_ele_r0 = np.sum(ele_bias_r * U_data[:,:,:,0], axis=1)
+    U_ele_r1 = np.sum(ele_bias_r * U_data[:,:,:,1], axis=1)
+    dUp0 = U_ele_r0 - U_data[:,0,:,0]
+    dUp1 = U_ele_r1 - U_data[:,0,:,1]
+    # 在每个单元上施加限制器
+    for i in range(IC_idx-1):
+        dUp_mod0 = minmod(dUp0[:,i],0.5*DU_p[:,i,0],0.5*DU_m[:,i,0],M_para,ele_vol)
+        U_data[:,1,i,0] = dUp_mod0
+    for i in range(IC_idx+2,n_ele):
+        dUp_mod1 = minmod(dUp1[:,i],0.5*DU_p[:,i,1],0.5*DU_m[:,i,1],M_para,ele_vol)
+        U_data[:,1,i,1] = dUp_mod1
+    # 界面单元上单独的限制器
+    U0IC0 = U_IC[:,0,0]
+    U0IC1 = U_IC[:,0,1]
+    ele_bias_l_IC0 = bais_single(point[IC_idx-1], IC_centroid_new[0], IC_vol_new[0])
+    ele_bias_r_IC1 = bais_single(point[IC_idx+2], IC_centroid_new[1], IC_vol_new[1])
+    U_IC0_l = np.sum(ele_bias_l_IC0 * U_IC[:,:,0], axis=1)
+    U_IC1_r = np.sum(ele_bias_r_IC1 * U_IC[:,:,1], axis=1)
+    dUp_IC0 = U0IC0 - U_IC0_l
+    dUp_IC1 = U_IC1_r - U0IC1
+    # 代入限制器函数
+    dUp_IC0_mod = minmod(dUp_IC0,0.5*DU_p[:,IC_idx-2,0],0.5*(U_IC[:,0,1]-U_IC[:,0,0]),M_para,IC_vol_new[0])
+    dUp_IC1_mod = minmod(dUp_IC1,0.5*(U_IC[:,0,1]-U_IC[:,0,0]),0.5*DU_m[:,IC_idx+2,1],M_para,IC_vol_new[1])
+    U_IC[:,1,0] = dUp_IC0_mod
+    U_IC[:,1,1] = dUp_IC1_mod
+
+def TVB_limiterP1(U_data,U_IC):
+    DU_p= np.zeros([DIM+2,n_ele,2],dtype=float)
+    DU_m= np.zeros([DIM+2,n_ele,2],dtype=float)
+    DU_p[:,0:-1,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
+    DU_m[:,1:,:] = U_data[:,0,1:,:]-U_data[:,0,0:-1,:]
+    # 自然的边界条件
+    DU_p[:,-1,-1] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
+    DU_m[:,0,0] = U_data[:,0,0,0]-U_data[:,0,-1,-1]
+    #靠近界面单元上的值 单独处理
+    DU_p[:,IC_idx-2,0] = U_IC[:,0,0] - U_data[:,0,IC_idx-2,0]
+    DU_m[:,IC_idx+2,1] = U_data[:,0,IC_idx+2,1] - U_IC[:,0,1]
+    # 单元的边界上施加限制 单边的
+    ele_bias_r = bais(point[1:], ele_centroid, ele_vol)
+    U_ele_r0 = np.sum(ele_bias_r * U_data[:,:,:,0], axis=1)
+    U_ele_r1 = np.sum(ele_bias_r * U_data[:,:,:,1], axis=1)
+    dUp0 = U_ele_r0 - U_data[:,0,:,0]
+    dUp1 = U_ele_r1 - U_data[:,0,:,1]
+    # 在每个单元上施加限制器
+    for i in range(IC_idx-1):
+        U1d = Fd1d.Fluid_1d(U_data[:,0,i,0],gamma=gamma0)
+        rho = U1d.rho
+        u = U1d.u
+        p = U1d.p
+        c = U1d.sound_speed()
+        H = (U_data[2,0,i,0]+p)/rho
+        R = np.array([[1, 1, 1], [u - c, u, u + c], [H - u * c, 0.5 * u ** 2, H + u * c]])+eps*np.eye(3)
+        R_inv = np.linalg.inv(R)
+        dUp_mod0 = R@minmod(R_inv@dUp0[:,i],R_inv@DU_p[:,i,0],R_inv@DU_m[:,i,0],M_para,ele_vol)
+        U_data[:,1,i,0] = dUp_mod0
+    for i in range(IC_idx+2,n_ele):
+        U1d = Fd1d.Fluid_1d(U_data[:,0,i,1],gamma=gamma1)
+        rho = U1d.rho
+        u = U1d.u
+        p = U1d.p
+        c = U1d.sound_speed()
+        H = (U_data[2,0,i,0]+p)/rho
+        R = np.array([[1, 1, 1], [u - c, u, u + c], [H - u * c, 0.5 * u ** 2, H + u * c]])+eps*np.eye(3)
+        R_inv = np.linalg.inv(R)
+        dUp_mod1 = R@minmod(R_inv@dUp1[:,i],R_inv@DU_p[:,i,1],R_inv@DU_m[:,i,1],M_para,ele_vol)
+        U_data[:,1,i,1] = dUp_mod1
+    # 界面单元上单独的限制器
+    U0IC0 = U_IC[:,0,0]
+    U0IC1 = U_IC[:,0,1]
+    ele_bias_l_IC0 = bais_single(point[IC_idx-1], IC_centroid_new[0], IC_vol_new[0])
+    ele_bias_r_IC1 = bais_single(point[IC_idx+2], IC_centroid_new[1], IC_vol_new[1])
+    U_IC0_l = np.sum(ele_bias_l_IC0 * U_IC[:,:,0], axis=1)
+    U_IC1_r = np.sum(ele_bias_r_IC1 * U_IC[:,:,1], axis=1)
+    dUp_IC0 = U0IC0 - U_IC0_l
+    dUp_IC1 = U_IC1_r - U0IC1
+    # 限制器
+    U1d = Fd1d.Fluid_1d(U_IC[:,0,0],gamma=gamma0)
+    rho = U1d.rho
+    u = U1d.u
+    p = U1d.p
+    c = U1d.sound_speed()
+    H = (U_IC[2,0,0]+p)/rho
+    R = np.array([[1, 1, 1], [u - c, u, u + c], [H - u * c, 0.5 * u ** 2, H + u * c]])+eps*np.eye(3)
+    R_inv = np.linalg.inv(R)
+    dUp_IC0_mod = R@minmod(R_inv@dUp_IC0,R_inv@DU_p[:,IC_idx-2,0],R_inv@(U_IC[:,0,1]-U_IC[:,0,0]),M_para,IC_vol_new[0])
+    U1d = Fd1d.Fluid_1d(U_IC[:,0,1],gamma=gamma1)
+    rho = U1d.rho
+    u = U1d.u
+    p = U1d.p
+    c = U1d.sound_speed()
+    H = (U_IC[2,0,1]+p)/rho
+    R = np.array([[1, 1, 1], [u - c, u, u + c], [H - u * c, 0.5 * u ** 2, H + u * c]])+eps*np.eye(3)
+    R_inv = np.linalg.inv(R)
+    dUp_IC1_mod = R@minmod(R_inv@dUp_IC1,R_inv@(U_IC[:,0,1]-U_IC[:,0,0]),R_inv@DU_m[:,IC_idx+2,1],M_para,IC_vol_new[1])
     U_IC[:,1,0] = dUp_IC0_mod
     U_IC[:,1,1] = dUp_IC1_mod
     # 限制新的体积
@@ -269,7 +380,6 @@ def TVB_limiter1_subcell(U_data):
                 dUp_mod1 = minmod(dUp1,DU_p[:,i,1],DU_p[:,i,1],0,phase_vol_new[1,i])
                 U_data[:,1,i,1] = dUp_mod1
 
-
 def oneD_Riemann(Ul,Ur):
     # 调用多介质黎曼问题求解器 获得一维黎曼问题的精确解 并返回界面的速度
     UlIC1d = Fd1d.Fluid_1d(Ul,gamma=gamma0)
@@ -291,7 +401,6 @@ def get_flux(U_data,max_speed):
     edge_bias_l = bais(point[1:], ele_centroid, ele_vol)
     Ul = np.zeros([DIM + 2, n_edge], dtype=float)
     Ur = np.zeros([DIM + 2, n_edge], dtype=float)
-
     #重构出边界上的值
     Ul[:, 1:IC_idx] = np.sum(edge_bias_l[:, 0:IC_idx - 1] * U_data[:, :, 0:IC_idx - 1,0], axis=1)
     Ur[:, 0:IC_idx - 1] = np.sum(edge_bias_r[:, 0:IC_idx - 1] * U_data[:, :, 0:IC_idx - 1,0], axis=1)
@@ -372,14 +481,12 @@ def get_flux(U_data,max_speed):
 
     return dU,dUIC,max_speed
 
-
-
 #建立主函数的
 if __name__ == '__main__':
     # 限制器参数 TVM
     M_para = 0
     M_b = 2
-    Nx = 80
+    Nx = 20
     max_t = 1.0
     DIM = 1
     CFL = 0.1
@@ -397,13 +504,6 @@ if __name__ == '__main__':
     n_edge = np.shape(point)[0]
     n_ele = n_edge - 1
     ele_vol = (x_max - x_min) / n_ele
-    # 单元之间的对应关系
-    ele2edge = np.array([np.arange(0, n_edge - 1), np.arange(1, n_edge)])
-    ele2edge = ele2edge.transpose()
-    ele2point = ele2edge
-    edge2cell = np.array([np.arange(-1, n_ele), np.arange(0, n_ele + 1)])
-    edge2cell[-1, -1] = -1
-    edge2cell = edge2cell.transpose()
     ele_centroid = 0.5 * (point[0:-1] + point[1:])
     # 积分点的信息
     W = 4
@@ -411,7 +511,6 @@ if __name__ == '__main__':
     wi *= 0.5
     # 对数据进行初始化
     U_data = np.zeros([DIM+2,M_b,Nx,2],dtype=float)
-    U_data_cp = np.zeros([DIM+2,M_b,Nx,2],dtype=float)
     init_fluid_data(U_data,ele_centroid)
     '''
     界面相关的几何信息
@@ -450,18 +549,18 @@ if __name__ == '__main__':
     iter = 0
     while (not is_stop):
         # 备份解
-        U_data_cp = U_data
+        U_data_cp = U_data.copy()
         x_I_cp = x_I
         # 确定界面的指标 更新相信息
         IC_idx = interface_cell_idx(phi)
         update_phase_info(x_I)
         IC_vol,IC_centroid=update_interface_info()
+        # 备份几何信息
+        phase_vol_cp = phase_vol.copy()
+        phase_centroid_cp = phase_centroid.copy()
         # 计算界面单元的初值
         compose_interface_val()
-        #compose_interface_val_backup()
-        # 求解多介质黎曼问题并得到通量
         u_star = oneD_Riemann(U_IC[:,0,0], U_IC[:,0,1])
-        # 计算通量 演化方程
         max_speed = 0
         dU, dUIC, max_speed = get_flux(U_data, max_speed)
         temp1 = dUIC[:,:,0]
@@ -471,25 +570,17 @@ if __name__ == '__main__':
             dt = max_t - t
             is_stop = True
         t += dt
-        # 界面的位置发生了移动
         x_I_new = x_I + u_star * dt
         phi_new = point - x_I_new
-        # 更新几何信息 需要备份啊
         IC_idx_new = interface_cell_idx_new(phi_new)
         update_phase_info_new(x_I_new)
         IC_vol_new,IC_centroid_new= update_interface_info_new()
-        # 一阶格式 更新守恒量
         U_data = U_data - dt * dU
-        # 一阶格式 更新界面单元的守恒量
         update_interface_val1(dt,dUIC)
-        # 或者是改为界面解除后施加限制器
-        TVB_limiter1(U_data,U_IC)
-        # 分解界面单元 和 备份的单元
+        MUSCL_limiter(U_data, U_IC)
+        #TVB_limiterP1(U_data,U_IC)
         decompose_interface_val()
-        # TVB_limiter1_subcell(U_data)
-        # 重新分配守恒量 间断起见直接赋值吧
-        # 在界面没有移动之前 更新备份解的值
-        updata_val_backup()
+        updata_val_backup(phase_vol_cp,phase_centroid_cp)
         phi = phi_new
         x_I = x_I_new
         IC_idx = IC_idx_new
@@ -498,25 +589,18 @@ if __name__ == '__main__':
         IC_idx = interface_cell_idx(phi)
         update_phase_info(x_I)
         IC_vol,IC_centroid=update_interface_info()
-        # 计算界面单元的初值
         compose_interface_val()
-        # compose_interface_val_backup()
-        # 求解多介质黎曼问题并得到通量
         u_star = oneD_Riemann(U_IC[:,0,0], U_IC[:,0,1])
-        # 计算通量
         dU, dUIC, max_speed = get_flux(U_data, max_speed)
-        temp2 = dUIC[:,:,0]
-        # 界面的位置发生了移动
         x_I_new = 0.5*x_I_cp+0.5*(x_I + u_star * dt)
         phi_new = point - x_I_new
-        # 更新几何信息 需要备份啊
         IC_idx_new = interface_cell_idx_new(phi_new)
         update_phase_info_new(x_I_new)
         IC_vol_new,IC_centroid_new= update_interface_info_new()
-        # 二阶格式的第二步
         U_data = 0.5*U_data_cp+0.5*(U_data - dt * dU)
         update_interface_val2(dt, dUIC)
-        TVB_limiter1(U_data, U_IC)
+        MUSCL_limiter(U_data,U_IC)
+        #TVB_limiterP1(U_data, U_IC)
         decompose_interface_val()
         # TVB_limiter1_subcell(U_data)
         phi = phi_new
