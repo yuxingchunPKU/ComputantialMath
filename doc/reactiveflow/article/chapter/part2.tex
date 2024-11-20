@@ -1,5 +1,129 @@
 \section{Equations for Pressure and Velocity}
+In this chapter, we establish equations for computing the pressure and velocity in the reactive flow.
+\subsection{Function of the genuinely non-linear wave}
+This result can be found in the work of Toro \cite{toroRiemannSolversNumerical2009}.
+\begin{equation}
+u_L^* = u_L - f_L(p,\boldsymbol{W}_L) \quad \text{and} \quad u_R^* = u_R + f_R(p,\boldsymbol{W}_R),
+\end{equation}
+where
+\begin{equation}
+f_K(p,\boldsymbol{W}_K) =
+\begin{cases}
+\displaystyle
+&\phi^{SW}_{K}(p) = (p-p_K) \left[ \frac{2}{(\gamma+1)(p+\mu^2 p_K)\rho_K} \right]^{\frac{1}{2}}, \quad \text{if } p\geq p_K \\
+\displaystyle
+&
+\phi^{RW}_{K}(p) = 
+\frac{2c_K}{\gamma-1} \left[ \left( \frac{p}{p_K} \right)^{\frac{\gamma-1}{2\gamma}} - 1 \right], \quad \text{if } p<p_K,
+\end{cases}
+\quad
+\text{for} \quad K = L,R.
+\end{equation}
+In the case of unreactive flow, the function $f_K(p)$ is connected using the continuity of velocity across the contact discontinuity, leading to the following equation:
+\begin{equation}
+F(p) = f_L(p) + f_R(p) + u_R - u_L = 0.
+\label{eq:Funreactive}
+\end{equation}
+The function $F(p)$ is a continuous, concave, and increasing function.
+Additionally, the solution to \eqref{eq:Funreactive} is unique if the pressure positivity condition is satisfied.
+\subsection{Function of the detonation wave}
+The velocity relation between the left and right states across the detonation wave is given by \eqref{eq:CombustionU}. When combined with the Chapman-Jouguet (CJ) detonation condition, we obtain the result:
+\begin{equation}
+u_1 = u_0 + f^{DT}(p), 
+\end{equation}
+where
+\begin{equation}
+f^{DT}(p) =
+\begin{cases}
+\displaystyle
+\phi^{DT}_0(p)=
+(p-p_0)\sqrt{\frac{(1-\mu^2)\tau_0-2\mu^2 \Delta (p_0-p_1)^{-1}}{\mu^2p_0+p_1}}, \quad \text{if } p\geq p_{CJ}, \\
+\displaystyle
+\phi^{RW}_{CJ}(p)+ \phi^{DT}_{0}(p_{CJ}), \quad \text{if } p<p_{CJ}.
+\end{cases}
+\end{equation}
+Here, subscript 0 denotes the state ahead of the detonation wave, and subscript CJ denotes the state at the Chapman-Jouguet point.
 
+Applying the continuity of velocity across the contact discontinuity,
+we have the following result.
+\begin{equation}
+F^{DT}(p) = f^{DT}(p)+f_R(p) + u_R - u_L = 0.
+\label{eq:Fdet}
+\end{equation}
+The function $f^{DT}(p)$ is a continuous increasing function with respect to the pressure.
+From \eqref{eq:ideal_hugoniot}, it is straightforward to prove that $\frac{\partial \tau_1}{\partial p_1}>0$
+Additionally, from \eqref{eq:u10}, we obtain the following:
+\begin{equation}
+\frac{\partial u_1}{\partial p_1} =
+\begin{cases}
+\frac{1}{2}\left[(\tau_1-\tau_0)(p_0-p_1) \right]^{-\frac{1}{2}}\left[ \frac{\partial \tau_1}{\partial p_1}(p_0-p_1)-(\tau_1 -\tau_0) \right] >0 \quad \text{if } p_1\geq p_{CJ}, \\
+\frac{\mathrm{d} \phi^{RW}_{CJ}(p_1)}{\mathrm{d} p_1} >0 \quad \text{if } p_1<p_{CJ}.
+\end{cases}
+\end{equation}
+The solution of $F^{DT}(p)$ is unique if the pressure positivity condition is satisfied.
+
+\subsection{Function of the deflagration wave}
+For a deflagration wave, the Riemann problem is not well-posed unless the speed of the deflagration is specified \cite{colomboSonicKineticPhase2004,fedkiwGhostFluidMethod}. Unlike the case of detonation, solving the Riemann problem for deflagration requires an additional parameter beyond the left and right states.
+Fortunately, there is extensive literature on the G-equation for flame discontinuities, which provides a framework for determining the appropriate deflagration speeds. According to this literature, the speed of the deflagration wave can be expressed as:
+\begin{equation}
+V = u_0 + K \left( \frac{p_0}{\rho_0}\right)^{Q}
+\end{equation}
+where $\rho_0,u_0,p_0$ represent the state variables ahead of the deflagration wave, and $K,Q$ are constants.
+% 
+The pressure relation between state 0 and state 1 is given by:
+\begin{equation}
+  p_1 = p_0 \left[ \frac{1}{2}(1-\mu^2) + \frac{1}{2} \sqrt{(1+\mu^2)^2(1-M^2_0)^2 +8\mu^2 \gamma M_0^2 \Delta T_0^{-1}} \right]
+\label{eq:p1def}
+\end{equation}
+where $T_0=p_0\tau_0$, $M_0 = -\frac{v_0}{c_0}$. 
+The speed $V-u_0$ is less than the speed of CJ-deflagration.
+We use the pressure $p_0$ as the iteration variable to solve the Riemann problem.
+$$
+u_0 = u_L-f^{DF}(p), 
+$$
+where
+\begin{equation}
+f^{DF}(p) = f_L(p_1(p)) + (p_1-p)\sqrt{\frac{(1-\mu^2)\tau-2\mu^2 \Delta (p-p_1)^{-1}}{\mu^2p+p_1}} 
+\end{equation}
+Finally, we arrive at the following equation:
+\begin{equation}
+F^{DF}(p) = f^{DF}(p)+f_R(p) + u_R - u_L = 0.
+\label{eq:Fdef}
+\end{equation}
+
+When $Q=\frac{1}{2}$, $M$ is a contant. The $p_1$ is the increasing function with respect to the $T_0$.
+It is easy to prove that $\frac{\mathrm{d} T_0}{\mathrm{d} p_0} >0$. The unique solution of $F^{DF}(p)$ is obtained if the pressure positivity condition is satisfied.
+
+% In order to overcome the indeterminacy of the Riemann problem solution in the deflagration regime, a phenomenological visible flame speed law is proposed.
+% In %cite,
+% the speed of the deflagration wave is given by a fixed fundamental speed $V_0$.
+% In this way, the authors are able to propose an algorithm in which the transition from one combustion regime to another occurs continuously with respect to the initial conditions and the fundamental flame speed.
+% In this work, the detonation is considered as limit case for a deflagration. 
+% Once the left and right are given, the value of the fundamental flame speed of the detonation represents a threshold value for the given left and right states.
+% If the given value for K0 is lower than the threshold value, the solution is in deflagration regime.
+% if K0 is larger than this value, the deflagration solution does not exist, we do not take into account the given value for K0 and we enforce that we are in the detonation regime.
 \section{Numerical Solution for Pressure}
+Computing the second-order derivatives of the functions in \eqref{eq:Fdet} and \eqref{eq:Fdef} is quite challenging. Therefore, we prefer to use numerical methods that do not require derivative information. The brent's method \cite{brentAlgorithmsMinimizationDerivatives1973} is a good choice for this problem. It is a hybrid approach that combines elements of quadratic interpolation, the bisection method, and the secant method. This method is widely used in numerical libraries, such as scipy.optimize in Python and fsolve in MATLAB.
+\section{Extending the conservative interface method to reactive flows}
+In previous studies, the Riemann problem was solved in the absence of reactions, primarily to track material interfaces and compute fluxes between two media. Extending this approach to reactive flows for tracking combustion waves is straightforward.
 
-\section{The Complete Solution}
+In the case of high-dimensional Euler equations, the governing equations are integrated over a moving control volume $V(t)$. By applying the divergence theorem and the Reynolds transport theorem, we get 
+\begin{equation}
+	\frac{\mathrm{d}}{\mathrm{d} t}\int_{V(t)}  \boldsymbol{U} \mathrm{d} \boldsymbol{x} +  \int_{\partial V(t)}\left(\boldsymbol{F}(\boldsymbol{U}) - \boldsymbol{U}\boldsymbol{v}^{\top} \right) \cdot \hat{\boldsymbol{n}} \mathrm{d} \boldsymbol{l} =\boldsymbol{0},\quad \boldsymbol{x} \in \Omega^{\pm}(t).
+\label{Equ:IntxEuler}
+\end{equation}
+where $\boldsymbol{v}$ is the velocity of the moving boundary $\partial V(t)$, and $\hat{\boldsymbol{n}}$ is the outward normal vector of the boundary. 
+The normal velocity $S = \boldsymbol{v} \cdot \boldsymbol{n}$, which is the speed of the combustion wave.
+The flux across the detonation wave is given by,
+\begin{equation}
+\boldsymbol{F}^{DT} = \boldsymbol{F}(\boldsymbol{U}_u) \cdot \hat{\boldsymbol{n}} - S \boldsymbol{U}_u.
+\end{equation}
+where $\boldsymbol{U}_u$ is the high-dimensional conservative variables of the unburnt gas. 
+
+The flux across the deflagration wave is given by,
+\begin{equation}
+\boldsymbol{F}^{DF} = \boldsymbol{F}(\widehat{\boldsymbol{U}}_0) - S \widehat{\boldsymbol{U}}_0.
+\end{equation}
+where $\widehat{\boldsymbol{U}}_0$ is high-dimensional conservative variables.
+Note that the Riemann problem is solved along the normal direction. The density, normal velocity and pressure of $\widehat{\boldsymbol{U}}_0$ is given by the state $\boldsymbol{U}_0$ in the one-dimensional Riemann problem.
+The tangential velocity equals to the tangential velocity of unburnt gas $\boldsymbol{U}_u$. 

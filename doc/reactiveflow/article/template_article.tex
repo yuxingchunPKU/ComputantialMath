@@ -9,8 +9,13 @@
 
 %%%%%===== 常用宏包 =====================================================
 \usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{pifont}
 \usepackage{graphicx}
-\usepackage{subfigure}
+\usepackage{subcaption}
 \usepackage{float}
 \usepackage{xcolor}
 \usepackage[numbers,square,sort&compress]{natbib}
@@ -65,7 +70,7 @@
 
 \begin{document}
 
-\title{\uppercase{Title of the paper Title of \\ the paper Title of the paper}}
+\title{A Note on 1D Riemann Problem for the Reactive Flow}
 
 \author{
   Yu Xingchun
@@ -82,8 +87,7 @@
 
 \input{chapter/part1.tex}
 \input{chapter/part2.tex}
-\input{chapter/part3.tex} 
-\cite{luNumericalStudyRiemann1998}
+\input{chapter/part3.tex}
 \bibliographystyle{unsrt}
 \bibliography{ReactiveFlow}
 
