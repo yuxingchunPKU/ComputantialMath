@@ -366,7 +366,7 @@ def _wave_positions(case: dict, waves: list):
 
 def plot_case(case: dict, x, rho, u, p, waves, out_dir: Path, plot_cfg: dict) -> dict:
     dpi = int(plot_cfg.get("dpi", 200))
-    figsize = tuple(plot_cfg.get("figsize", [10.0, 3.2]))
+    figsize = tuple(plot_cfg.get("figsize", [4.2, 3.0]))
     color = plot_cfg.get("line_color", "#1f77b4")
     x_L, x_R = float(case["domain"]["x_L"]), float(case["domain"]["x_R"])
     positions = _wave_positions(case, waves)
@@ -574,11 +574,14 @@ def build_report(results: list, report_path: Path, config_path: Path, meta: dict
         lines.append("")
         lines.append("**结果图像**")
         lines.append("")
-        lines.append(f"![{result['name']} 密度]({_rel_link(figures['rho'], report_dir)})")
-        lines.append("")
-        lines.append(f"![{result['name']} 速度]({_rel_link(figures['u'], report_dir)})")
-        lines.append("")
-        lines.append(f"![{result['name']} 压强]({_rel_link(figures['p'], report_dir)})")
+        lines.append("| 密度 $\\rho$ | 速度 $u$ | 压强 $p$ |")
+        lines.append("| :---: | :---: | :---: |")
+        cells = []
+        for key, label in (("rho", "密度"), ("u", "速度"), ("p", "压强")):
+            link = _rel_link(figures[key], report_dir)
+            alt = f"{result['name']} {label}"
+            cells.append(f'<img src="{link}" alt="{alt}" width="280">')
+        lines.append("| " + " | ".join(cells) + " |")
         lines.append("")
         lines.append(f"三联图：[overview.png]({_rel_link(figures['overview'], report_dir)})")
         lines.append("")

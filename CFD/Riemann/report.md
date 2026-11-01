@@ -3,7 +3,7 @@
 一维 Euler 方程组的精确 Riemann 求解器测试。包括刚性气体（stiffened gas）、 爆轰波（强爆轰与 CJ 爆轰）以及爆燃波算例。
 
 > 由 `code/run_cases.py` 读取 `code/cases.yaml` 自动生成。
-> 生成时间：2026-11-02 01:03:31
+> 生成时间：2026-11-02 01:07:50
 
 ## 算例汇总
 
@@ -66,11 +66,9 @@ $$
 
 **结果图像**
 
-![inert_sod 密度](fig/inert_sod/rho.png)
-
-![inert_sod 速度](fig/inert_sod/u.png)
-
-![inert_sod 压强](fig/inert_sod/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/inert_sod/rho.png" alt="inert_sod 密度" width="280"> | <img src="fig/inert_sod/u.png" alt="inert_sod 速度" width="280"> | <img src="fig/inert_sod/p.png" alt="inert_sod 压强" width="280"> |
 
 三联图：[overview.png](fig/inert_sod/overview.png)
 
@@ -109,11 +107,9 @@ Sod 问题的刚性气体推广，左右两侧状态方程均包含非零 p_inf�
 
 **结果图像**
 
-![inert_stiffened_gas 密度](fig/inert_stiffened_gas/rho.png)
-
-![inert_stiffened_gas 速度](fig/inert_stiffened_gas/u.png)
-
-![inert_stiffened_gas 压强](fig/inert_stiffened_gas/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/inert_stiffened_gas/rho.png" alt="inert_stiffened_gas 密度" width="280"> | <img src="fig/inert_stiffened_gas/u.png" alt="inert_stiffened_gas 速度" width="280"> | <img src="fig/inert_stiffened_gas/p.png" alt="inert_stiffened_gas 压强" width="280"> |
 
 三联图：[overview.png](fig/inert_stiffened_gas/overview.png)
 
@@ -155,11 +151,9 @@ Sod 问题的刚性气体推广，左右两侧状态方程均包含非零 p_inf�
 
 **结果图像**
 
-![detonation_strong 密度](fig/detonation_strong/rho.png)
-
-![detonation_strong 速度](fig/detonation_strong/u.png)
-
-![detonation_strong 压强](fig/detonation_strong/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/detonation_strong/rho.png" alt="detonation_strong 密度" width="280"> | <img src="fig/detonation_strong/u.png" alt="detonation_strong 速度" width="280"> | <img src="fig/detonation_strong/p.png" alt="detonation_strong 压强" width="280"> |
 
 三联图：[overview.png](fig/detonation_strong/overview.png)
 
@@ -201,11 +195,9 @@ CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
 
 **结果图像**
 
-![detonation_cj 密度](fig/detonation_cj/rho.png)
-
-![detonation_cj 速度](fig/detonation_cj/u.png)
-
-![detonation_cj 压强](fig/detonation_cj/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/detonation_cj/rho.png" alt="detonation_cj 密度" width="280"> | <img src="fig/detonation_cj/u.png" alt="detonation_cj 速度" width="280"> | <img src="fig/detonation_cj/p.png" alt="detonation_cj 压强" width="280"> |
 
 三联图：[overview.png](fig/detonation_cj/overview.png)
 
@@ -249,11 +241,9 @@ CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
 
 **结果图像**
 
-![deflagration 密度](fig/deflagration/rho.png)
-
-![deflagration 速度](fig/deflagration/u.png)
-
-![deflagration 压强](fig/deflagration/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/deflagration/rho.png" alt="deflagration 密度" width="280"> | <img src="fig/deflagration/u.png" alt="deflagration 速度" width="280"> | <img src="fig/deflagration/p.png" alt="deflagration 压强" width="280"> |
 
 三联图：[overview.png](fig/deflagration/overview.png)
 
@@ -297,11 +287,9 @@ CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
 
 **结果图像**
 
-![deflagration_uL0 密度](fig/deflagration_uL0/rho.png)
-
-![deflagration_uL0 速度](fig/deflagration_uL0/u.png)
-
-![deflagration_uL0 压强](fig/deflagration_uL0/p.png)
+| 密度 $\rho$ | 速度 $u$ | 压强 $p$ |
+| :---: | :---: | :---: |
+| <img src="fig/deflagration_uL0/rho.png" alt="deflagration_uL0 密度" width="280"> | <img src="fig/deflagration_uL0/u.png" alt="deflagration_uL0 速度" width="280"> | <img src="fig/deflagration_uL0/p.png" alt="deflagration_uL0 压强" width="280"> |
 
 三联图：[overview.png](fig/deflagration_uL0/overview.png)
 

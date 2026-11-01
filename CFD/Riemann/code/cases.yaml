@@ -23,7 +23,8 @@ defaults:
     report: ../report.md
   plot:
     dpi: 200
-    figsize: [10.0, 3.2]
+    # 单变量图像用于报告中并排展示，采用较紧凑的宽高比
+    figsize: [4.2, 3.0]
     line_color: "#1f77b4"
 
 cases:
