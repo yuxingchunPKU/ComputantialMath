@@ -176,7 +176,7 @@ class ExactRiemannSolverDetonation:
     def solver(self):
         p = self.p_init()
         p_new = 0
-        for i in range(self.maxit):
+        for _ in range(self.maxit):
             fp = self.f_p(p)
             dfp = self.f_prime_L_p(p) + self.f_prime_R_p(p)
             p_new = max(p - fp / dfp, self.tol)
@@ -202,17 +202,17 @@ class ExactRiemannSolverDetonation:
     def find_interval(self,p0:float):
         # 寻找根的存在区间
         p1 = p0
-        iter = 0
-        if self.f_p(p0)<=0:
-            while self.f_p(p1)<=0:
+        if self.f_p(p0) <= 0:
+            for _ in range(200):
+                if self.f_p(p1) > 0:
+                    return p0, p1
                 p1 = 2*p1
-                iter += 1
-            return p0,p1
         else:
-            while self.f_p(p1)>0:
+            for _ in range(200):
+                if self.f_p(p1) <= 0:
+                    return p1, p0
                 p1 = 0.5*p1
-                iter += 1
-            return p1,p0
+        raise RuntimeError("无法找到根的存在区间")
     def solver_brent(self):
         # Brent's method to find a root of the function f_p
         p0 = self.p_init()
@@ -222,8 +222,7 @@ class ExactRiemannSolverDetonation:
         fa = self.f_p(a)
         fb = self.f_p(b)
         if fa*fb>0:
-            print("f(a) and f(b) have the same sign")
-            exit()
+            raise RuntimeError("Brent 方法失败：区间端点函数值同号")
         if abs(fa)<abs(fb):
             a,b = b,a
             fa,fb = fb,fa
@@ -233,7 +232,7 @@ class ExactRiemannSolverDetonation:
         d = 0
         mflag = True
         iter = 0
-        for i in range(self.maxit):
+        for _ in range(self.maxit):
             if abs(b-a)/abs(a)<self.tol:
                 break
             if fb==0:
@@ -543,36 +542,57 @@ class ExactRiemannSolverDeflagration:
         K = self.K
         Q = self.Q
         return u0 + K*(p0/rho0)**Q
-    def f_R_p(self,p:float)->float:
+    def state0_from_p0(self,p0:float):
         '''
-        推导爆燃波到右状态的速度差值
-        :return:
+        由波前（未燃气体）压强 p0 计算火焰前方状态 0 的密度和速度
+
+        状态 0 与右端未燃状态 WR 之间是一道非反应波（激波或稀疏波）。
+        :param p0: 火焰前方压强（求解变量）
+        :return: (rho0, u0)
         '''
-        p0 = p
-        rho0 = 0.0
-        phi = 0.0
         WR = self.WR
         rhoR = WR.rho
         uR = WR.u
         pR = WR.p
         gamma = WR.gamma
         mu2 = (gamma - 1) / (gamma + 1)
-        if p0 >= WR.p:
+        if p0 >= pR:
             # 激波分支
-            rho0 += rhoR*(p0+mu2*pR)/(mu2*p0+pR)
-            phi += ((p0-pR)*((1-mu2)/(rhoR*(p0+mu2*pR)))**0.5)
+            rho0 = rhoR*(p0+mu2*pR)/(mu2*p0+pR)
+            phi = (p0-pR)*((1-mu2)/(rhoR*(p0+mu2*pR)))**0.5
         else:
             # 稀疏波分支
-            idx = 1/gamma
-            rho0 += rhoR*(p0/pR)**idx
-            phi += (2*WR.a()/(gamma-1)*((p0/pR)**((gamma-1)/(2*gamma))-1))
+            rho0 = rhoR*(p0/pR)**(1/gamma)
+            phi = 2*WR.a()/(gamma-1)*((p0/pR)**((gamma-1)/(2*gamma))-1)
+        return rho0, uR + phi
 
-        u0 = phi + uR
+    def state1_from_p0(self,p0:float):
+        '''
+        由火焰前方压强 p0 计算火焰波后的状态 1
+
+        依次使用：
+            1. 右端非反应波：WR -> 状态 0
+            2. 爆燃波速度关系：V = u0 + K (p0/rho0)^Q
+            3. Rayleigh-Hugoniot 关系：状态 0 -> 状态 1
+        :param p0: 火焰前方压强
+        :return: (rho0, u0, V, p1, u1)
+        '''
+        rho0, u0 = self.state0_from_p0(p0)
+        V = self.deflagration_speed(rho0, u0, p0)
+        p1 = self.compute_p1(rho0, u0, p0)
         tau0 = 1/rho0
-        p1 = self.compute_p1(rho0,u0,p0)
+        mu2 = (self.WR.gamma - 1) / (self.WR.gamma + 1)
         phi_def = (p1-p0)*(((1-mu2)*tau0-2*mu2*self.dq/(p0-p1))/(mu2*p0+p1))**0.5
-        # 返回速度差
-        return phi+phi_def
+        return rho0, u0, V, p1, u0 + phi_def
+
+    def f_R_p(self,p:float)->float:
+        '''
+        计算右波（非反应波 + 爆燃波）两侧的速度差 u1 - uR
+        :param p: 火焰前方压强 p0
+        :return: u1 - uR
+        '''
+        _, _, _, _, u1 = self.state1_from_p0(p)
+        return u1 - self.WR.u
 
     def compute_p1(self,rho0,u0,p0):
         gamma = self.WR.gamma
@@ -588,7 +608,14 @@ class ExactRiemannSolverDeflagration:
         return p1
 
     def f_p(self,p):
-        return self.f_L_p(p) + self.f_R_p(p) + self.WR.u - self.WL.u
+        '''
+        匹配方程
+
+        求解变量 p 是火焰前方压强 p0。左波匹配的是火焰波后压强 p1，
+        因此左波特征函数必须在 p1 处取值。
+        '''
+        _, _, _, p1, _ = self.state1_from_p0(p)
+        return self.f_L_p(p1) + self.f_R_p(p) + self.WR.u - self.WL.u
 
     def p_init(self):
         return self.WR.p
@@ -596,17 +623,17 @@ class ExactRiemannSolverDeflagration:
     def find_interval(self,p0:float):
         # 寻找根的存在区间
         p1 = p0
-        iter = 0
-        if self.f_p(p0)<=0:
-            while self.f_p(p1)<=0:
+        if self.f_p(p0) <= 0:
+            for _ in range(200):
+                if self.f_p(p1) > 0:
+                    return p0, p1
                 p1 = 2*p1
-                iter += 1
-            return p0,p1
         else:
-            while self.f_p(p1)>0:
+            for _ in range(200):
+                if self.f_p(p1) <= 0:
+                    return p1, p0
                 p1 = 0.5*p1
-                iter += 1
-            return p1,p0
+        raise RuntimeError("无法找到根的存在区间")
 
     def solver_brent(self):
         p0 = self.p_init()
@@ -616,8 +643,7 @@ class ExactRiemannSolverDeflagration:
         fa = self.f_p(a)
         fb = self.f_p(b)
         if fa*fb>0:
-            print("f(a) and f(b) have the same sign")
-            exit()
+            raise RuntimeError("Brent 方法失败：区间端点函数值同号")
         if abs(fa)<abs(fb):
             a,b = b,a
             fa,fb = fb,fa
@@ -627,7 +653,7 @@ class ExactRiemannSolverDeflagration:
         d = 0
         mflag = True
         iter = 0
-        for i in range(self.maxit):
+        for _ in range(self.maxit):
             if abs(b-a)/abs(a)<self.tol:
                 break
             if fb==0:
@@ -669,25 +695,47 @@ class ExactRiemannSolverDeflagration:
 
             iter += 1
         self.p0 = b
-        self.u_star = 0.5*(self.WL.u+self.WR.u) + 0.5*(self.f_R_p(b)-self.f_L_p(b))
-        rho0 = 0.0
-        u0 = 0.0
-        mu2 = (self.WR.gamma - 1) / (self.WR.gamma + 1)
-        if p0 >= self.WR.p:
-            rho0 += self.WR.rho*(p0+mu2*self.WR.p)/(mu2*p0+self.WR.p)
-            u0 += self.WR.u + ((p0-self.WR.p)*((1-mu2)/(self.WR.rho*(p0+mu2*self.WR.p)))**0.5)
-        else:
-            idx = 1/self.WR.gamma
-            rho0 += self.WR.rho*(p0/self.WR.p)**idx
-            u0 += 2*self.WR.a()/(self.WR.gamma-1)*((p0/self.WR.p)**((self.WR.gamma-1)/(2*self.WR.gamma))-1)
+        rho0, u0, V, p1, u1 = self.state1_from_p0(b)
         self.rho0 = rho0
-        self.V = self.deflagration_speed(rho0,u0,p0)
-        self.p_star = self.compute_p1(rho0,u0,p0)
-        # 输出四组数据
+        self.u0 = u0
+        self.V = V
+        self.p_star = p1
+        self.u_star = u1
+        # 由质量守恒得到火焰波后（中间状态）的密度
+        self.rho1 = rho0*(V-u0)/(V-u1)
+        if self.quiet == False:
+            print('p_star {:.16f}'.format(self.p_star))
+            print('u_star {:.16f}'.format(self.u_star))
+            print('p0 {:.16f}'.format(self.p0))
+            print('rho0 {:.16f}'.format(self.rho0))
+            print('rho1 {:.16f}'.format(self.rho1))
+            print('V {:.16f}'.format(self.V))
+        # 输出数据
         return self.p_star,self.u_star,self.p0,self.rho0,self.V
+
+    def solver_data(self):
+        '''
+        :return: 求解得到的波和状态数据字典
+        '''
+        return {
+            'p_star': self.p_star,
+            'u_star': self.u_star,
+            'p0': self.p0,
+            'rho0': self.rho0,
+            'u0': self.u0,
+            'rho1': self.rho1,
+            'V': self.V,
+        }
 
 # 爆燃问题的完整解
 class RiemannCompleteSolDef:
+    '''
+    爆燃波黎曼问题的完整解
+
+    从左到右的波系为
+        左端状态 WL -> 非反应波 -> 接触间断 -> 爆燃波 -> 状态 0 -> 非反应波 -> 右端状态 WR
+    其中求解器给出的是状态 1（火焰波后、接触间断一侧）与状态 0（火焰波前）。
+    '''
     p_star : float
     u_star : float
     p0 : float
@@ -700,25 +748,179 @@ class RiemannCompleteSolDef:
     N : int
     t_final : float
     quite : bool
-    def __init__(self,p_star,u_star,p0,rho0,WL,WR,t_final,x_L=-0.5,x_R=0.5,x_c =0.0,N=200,quite=True):
+    V : float
+    rho1 : float
+    u0 : float
+
+    def __init__(self,p_star,u_star,p0,rho0,WL,WR,t_final,x_L=-0.5,x_R=0.5,x_c=0.0,N=200,quite=True,V=None,rho1=None,u0=None):
+        '''
+        :param p_star: 接触间断/火焰波后压强 p1
+        :param u_star: 接触间断速度 u1
+        :param p0: 火焰波前压强
+        :param rho0: 火焰波前密度
+        :param WL: 左端流体
+        :param WR: 右端流体
+        :param t_final: 终止时刻
+        :param x_L: 左边界
+        :param x_R: 右边界
+        :param x_c: 初始间断位置
+        :param N: 网格数
+        :param quite: 是否静默
+        :param V: 火焰波速度
+        :param rho1: 火焰波后密度
+        :param u0: 火焰波前速度
+        '''
         self.p_star = p_star
         self.u_star = u_star
         self.p0 = p0
         self.rho0 = rho0
         self.WL = WL
         self.WR = WR
-        self.t_final =t_final
+        self.t_final = t_final
         self.x_L = x_L
         self.x_R = x_R
         self.x_c = x_c
         self.N = N
         self.quite = quite
+        self.V = V
+        self.rho1 = rho1
+        self.u0 = u0
+
+    def _state0_velocity(self):
+        '''由火焰波前压强 p0 和右端状态 WR 计算 u0'''
+        WR = self.WR
+        mu2 = (WR.gamma - 1) / (WR.gamma + 1)
+        if self.p0 >= WR.p:
+            phi = (self.p0 - WR.p) * ((1 - mu2) / (WR.rho * (self.p0 + mu2 * WR.p))) ** 0.5
+        else:
+            phi = 2 * WR.a() / (WR.gamma - 1) * (
+                        (self.p0 / WR.p) ** ((WR.gamma - 1) / (2 * WR.gamma)) - 1)
+        return WR.u + phi
 
     def complete_solution(self):
-        x = np.linspace(self.x_L, self.x_R,self.N+1)
-        rho = np.zeros(len(x),dtype='float')
-        u = np.zeros(len(x), dtype='float')
-        p = np.zeros(len(x), dtype='float')
-        S = self.u_star
+        if self.V is None:
+            raise ValueError("RiemannCompleteSolDef 需要爆燃波速度 V")
+        x = np.linspace(self.x_L, self.x_R, self.N + 1)
+        rho = np.full(len(x), self.WL.rho, dtype='float')
+        u = np.full(len(x), self.WL.u, dtype='float')
+        p = np.full(len(x), self.WL.p, dtype='float')
+        si = (x - self.x_c) / self.t_final
+        S = self.u_star  # 接触间断速度
+        p1 = self.p_star
+        u0 = self._state0_velocity() if self.u0 is None else self.u0
+        rho1 = self.rho0 * (self.V - u0) / (self.V - self.u_star) if self.rho1 is None else self.rho1
+        if not (self.V > S):
+            raise ValueError("爆燃波速度 V 必须大于接触间断速度 u*，否则波系顺序不成立")
+
+        WL = self.WL
+        gammaL = WL.gamma
+        mu2L = (gammaL - 1) / (gammaL + 1)
+
+        # ---------------- 左侧非反应波 ----------------
+        if p1 >= WL.p:
+            # 激波
+            rho_star_L = WL.rho * (p1 + mu2L * WL.p) / (WL.p + mu2L * p1)
+            if abs(rho_star_L - WL.rho) > 1.0e-14 * WL.rho:
+                S_L = (rho_star_L * self.u_star - WL.rho * WL.u) / (rho_star_L - WL.rho)
+            else:
+                # 零强度波
+                S_L = WL.u - WL.a()
+            mask = (si > S_L) & (si <= S)
+            rho[mask] = rho_star_L
+            u[mask] = self.u_star
+            p[mask] = p1
+            if self.quite == False:
+                print("Left Shock Wave")
+                print('rho_star_L {:.16f}'.format(rho_star_L))
+                print('S_L {:.16f}'.format(S_L))
+        else:
+            # 稀疏波
+            aL = WL.a()
+            rho_star_L = WL.rho * (p1 / WL.p) ** (1 / gammaL)
+            a_star_L = aL * (p1 / WL.p) ** ((gammaL - 1) / (2 * gammaL))
+            S_HL = WL.u - aL
+            S_TL = self.u_star - a_star_L
+            fan = (si > S_HL) & (si <= S_TL)
+            rho[fan] = WL.rho * (2 / (gammaL + 1) + (gammaL - 1) * (WL.u - si[fan]) /
+                                 ((gammaL + 1) * aL)) ** (2 / (gammaL - 1))
+            u[fan] = 2 * (aL + (gammaL - 1) * WL.u / 2 + si[fan]) / (gammaL + 1)
+            p[fan] = WL.p * (2 / (gammaL + 1) + (gammaL - 1) * (WL.u - si[fan]) /
+                             ((gammaL + 1) * aL)) ** (2 * gammaL / (gammaL - 1))
+            mask = (si > S_TL) & (si <= S)
+            rho[mask] = rho_star_L
+            u[mask] = self.u_star
+            p[mask] = p1
+            if self.quite == False:
+                print("Left Rarefaction Wave")
+                print('rho_star_L {:.16f}'.format(rho_star_L))
+                print('S_HL {:.16f}'.format(S_HL))
+                print('S_TL {:.16f}'.format(S_TL))
+
+        # ---------------- 接触间断与火焰之间的状态 1 ----------------
+        mask = (si > S) & (si < self.V)
+        rho[mask] = rho1
+        u[mask] = self.u_star
+        p[mask] = p1
+
+        # ---------------- 火焰波后的状态 0 与右侧非反应波 ----------------
+        WR = self.WR
+        gammaR = WR.gamma
+        aR = WR.a()
+        if self.p0 >= WR.p:
+            # 激波
+            tau_R = 1 / WR.rho
+            tau_0 = 1 / self.rho0
+            if abs(tau_R - tau_0) > 1.0e-14 * tau_R:
+                S_R0 = WR.u + ((self.p0 - WR.p) / (tau_R - tau_0)) ** 0.5 / WR.rho
+            else:
+                S_R0 = WR.u + WR.a()
+            if not (S_R0 > self.V):
+                raise ValueError("右侧非反应波速度必须大于爆燃波速度 V，否则波系顺序不成立")
+            mask = (si >= self.V) & (si < S_R0)
+            rho[mask] = self.rho0
+            u[mask] = u0
+            p[mask] = self.p0
+            rho[si >= S_R0] = WR.rho
+            u[si >= S_R0] = WR.u
+            p[si >= S_R0] = WR.p
+            if self.quite == False:
+                print("Right Non-reactive Shock Wave")
+                print('rho0 {:.16f}'.format(self.rho0))
+                print('S_R0 {:.16f}'.format(S_R0))
+        else:
+            # 稀疏波
+            a0 = (gammaR * self.p0 / self.rho0) ** 0.5
+            S_TR0 = u0 + a0
+            S_HR = WR.u + aR
+            if not (S_TR0 > self.V):
+                raise ValueError("右侧非反应波速度必须大于爆燃波速度 V，否则波系顺序不成立")
+            mask = (si >= self.V) & (si < S_TR0)
+            rho[mask] = self.rho0
+            u[mask] = u0
+            p[mask] = self.p0
+            fan = (si >= S_TR0) & (si < S_HR)
+            rho[fan] = WR.rho * (2 / (gammaR + 1) - (gammaR - 1) * (WR.u - si[fan]) /
+                                 ((gammaR + 1) * aR)) ** (2 / (gammaR - 1))
+            u[fan] = 2 * (-aR + (gammaR - 1) * WR.u / 2 + si[fan]) / (gammaR + 1)
+            p[fan] = WR.p * (2 / (gammaR + 1) - (gammaR - 1) * (WR.u - si[fan]) /
+                             ((gammaR + 1) * aR)) ** (2 * gammaR / (gammaR - 1))
+            rho[si >= S_HR] = WR.rho
+            u[si >= S_HR] = WR.u
+            p[si >= S_HR] = WR.p
+            if self.quite == False:
+                print("Right Non-reactive Rarefaction Wave")
+                print('rho0 {:.16f}'.format(self.rho0))
+                print('S_TR0 {:.16f}'.format(S_TR0))
+                print('S_HR {:.16f}'.format(S_HR))
+
+        if self.quite == False:
+            print("Deflagration Wave")
+            print('rho1 {:.16f}'.format(rho1))
+            print('V {:.16f}'.format(self.V))
+        return x, rho, u, p
 
 
+
+
+# 向后兼容的别名
+RiemannCompleteSolution = RiemannCompleteSolDet

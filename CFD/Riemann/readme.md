@@ -4,13 +4,27 @@
 $$
 p = (\gamma-1)\rho e - \gamma p_{\infty}
 $$
-求解的数值方法是牛顿方法。
-
-
+求解的数值方法是牛顿方法或 Brent 方法。
 
 数值方法的实现流程
 
 Cutforth, M. C. (2019). *Sharp interface schemes for multi-material computational fluid dynamics*. https://doi.org/10.17863/CAM.44907
+
+## 运行测试
+
+全部算例参数写在 [`code/cases.yaml`](./code/cases.yaml) 中，程序读取 YAML 文件后
+自动计算并输出图像与 Markdown 报告：
+
+```bash
+cd code
+pip install -r requirements.txt
+python run_cases.py              # 运行全部算例并生成 ../report.md
+python run_cases.py --list       # 列出全部算例
+python run_cases.py --case inert_sod
+```
+
+完整的测试结果（密度、速度、压强分布以及波系参数）见
+[`report.md`](./report.md)。
 
 ## 例子
 
@@ -28,5 +42,5 @@ $$
 
 | 密度                      | 速度                  | 压强                  |
 | ------------------------- | --------------------- | --------------------- |
-| ![rho](./fig/rho.png) | ![u](./fig/u.png) | ![p](./fig/p.png) |
+| ![rho](./fig/inert_sod/rho.png) | ![u](./fig/inert_sod/u.png) | ![p](./fig/inert_sod/p.png) |
 

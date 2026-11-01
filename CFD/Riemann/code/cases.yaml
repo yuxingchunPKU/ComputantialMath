@@ -1,0 +1,213 @@
+# 一维刚性气体 / 反应流黎曼问题精确解算例
+#
+# 运行方式（在 code 目录下）：
+#   python run_cases.py                 # 运行全部算例并生成报告
+#   python run_cases.py --case inert_sod
+#   python run_cases.py --list
+#
+# 长度、密度、速度、压强均采用国际单位制。
+
+meta:
+  title: 刚性气体黎曼问题精确解测试报告
+  description: >-
+    一维 Euler 方程组的精确 Riemann 求解器测试。包括刚性气体（stiffened gas）、
+    爆轰波（强爆轰与 CJ 爆轰）以及爆燃波算例。
+
+defaults:
+  numerical:
+    method: newton      # newton | brent
+    tol: 1.0e-12
+    maxit: 10000
+  output:
+    fig_dir: ../fig     # 相对于本配置文件所在目录
+    report: ../report.md
+  plot:
+    dpi: 200
+    figsize: [10.0, 3.2]
+    line_color: "#1f77b4"
+
+cases:
+  # ------------------------------------------------------------------
+  # 1. 经典 Sod 激波管问题（readme.md / main.py）
+  # ------------------------------------------------------------------
+  - name: inert_sod
+    description: 经典 Sod 激波管问题，左右两侧为不同比热比的理想气体。
+    type: inert
+    left:
+      rho: 1.0
+      u: 0.0
+      p: 1.0
+      gamma: 1.4
+      p_inf: 0.0
+    right:
+      rho: 0.125
+      u: 0.0
+      p: 0.1
+      gamma: 1.667
+      p_inf: 0.0
+    domain:
+      x_L: -0.5
+      x_R: 0.5
+      x_c: 0.0
+      t_end: 0.2
+      N: 400
+    numerical:
+      method: newton
+      tol: 1.0e-12
+      maxit: 1000
+
+  # ------------------------------------------------------------------
+  # 2. 刚性气体状态方程分支测试（p_inf != 0）
+  # ------------------------------------------------------------------
+  - name: inert_stiffened_gas
+    description: >-
+      Sod 问题的刚性气体推广，左右两侧状态方程均包含非零 p_inf，
+      用于检验状态方程和波速公式中的 p_inf 项。
+    type: inert
+    left:
+      rho: 1.0
+      u: 0.0
+      p: 1.0
+      gamma: 1.4
+      p_inf: 0.5
+    right:
+      rho: 0.125
+      u: 0.0
+      p: 0.1
+      gamma: 1.667
+      p_inf: 0.2
+    domain:
+      x_L: -0.5
+      x_R: 0.5
+      x_c: 0.0
+      t_end: 0.2
+      N: 400
+    numerical:
+      method: newton
+      tol: 1.0e-12
+      maxit: 1000
+
+  # ------------------------------------------------------------------
+  # 3. 强爆轰（main4combustion.py case 1 / main4react.py）
+  # ------------------------------------------------------------------
+  - name: detonation_strong
+    description: 强爆轰算例，波后状态恰为左端给定状态；右侧为 CJ 爆轰分支之上的强爆轰波。
+    type: detonation
+    left:
+      rho: 1.57861
+      u: 2799.82
+      p: 7.70752e6
+      gamma: 1.27
+      q: 0.0
+    right:
+      rho: 0.601
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.27
+      q: 1.3444444444444444e7   # 242000/0.018
+    domain:
+      x_L: 0.0
+      x_R: 8.0
+      x_c: 4.0
+      t_end: 5.0e-4
+      N: 1200
+    numerical:
+      method: newton
+      tol: 1.0e-12
+      maxit: 1000
+
+  # ------------------------------------------------------------------
+  # 4. CJ 爆轰（main4combustion.py case 2 / main4ReactCJDetonation.py）
+  # ------------------------------------------------------------------
+  - name: detonation_cj
+    description: CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
+    type: detonation
+    left:
+      rho: 0.974514
+      u: 1586.05
+      p: 4.04266e6
+      gamma: 1.27
+      q: 0.0
+    right:
+      rho: 0.601
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.27
+      q: 1.3444444444444444e7   # 242000/0.018
+    domain:
+      x_L: 0.0
+      x_R: 8.0
+      x_c: 4.0
+      t_end: 5.0e-4
+      N: 1200
+    numerical:
+      method: newton
+      tol: 1.0e-12
+      maxit: 1000
+
+  # ------------------------------------------------------------------
+  # 5. 爆燃波（main4react.py 中的算例）
+  # ------------------------------------------------------------------
+  - name: deflagration
+    description: >-
+      爆燃波算例。右端为未燃气体，左端为已燃气体；火焰速度满足
+      V = u0 + K (p0/rho0)^Q。该算例中左波强度接近于零。
+    type: deflagration
+    left:
+      rho: 0.142168
+      u: -181.018
+      p: 9.45695e4
+      gamma: 1.4
+      q: 0.0
+    right:
+      rho: 1.0
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.4
+      q: 2.0e6
+    deflagration:
+      K: 3.0e-9
+      Q: 2
+    domain:
+      x_L: 0.0
+      x_R: 1.6
+      x_c: 0.8
+      t_end: 5.0e-4
+      N: 1000
+    numerical:
+      method: brent
+      tol: 1.0e-12
+      maxit: 10000
+
+  # ------------------------------------------------------------------
+  # 6. 爆燃波（main4deflagrations.py 中的算例）
+  # ------------------------------------------------------------------
+  - name: deflagration_uL0
+    description: >-
+      与上一算例相同，但左端速度取 u_L = 0，左波为激波。
+    type: deflagration
+    left:
+      rho: 0.142168
+      u: 0.0
+      p: 9.45695e4
+      gamma: 1.4
+      q: 0.0
+    right:
+      rho: 1.0
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.4
+      q: 2.0e6
+    deflagration:
+      K: 3.0e-9
+      Q: 2
+    domain:
+      x_L: 0.0
+      x_R: 1.6
+      x_c: 0.8
+      t_end: 5.0e-4
+      N: 1000
+    numerical:
+      method: brent
+      tol: 1.0e-12
+      maxit: 10000

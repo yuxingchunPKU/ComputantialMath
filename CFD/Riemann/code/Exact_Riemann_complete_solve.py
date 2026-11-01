@@ -23,7 +23,7 @@ class Riemann_Complete_solve:
         self.N = N
 
     def solve(self):
-        x = np.arange(self.x_L, self.x_R, (self.x_R-self.x_L)/self.N)
+        x = np.linspace(self.x_L, self.x_R, self.N + 1)
         rho = np.zeros(len(x),dtype='float')
         u = np.zeros(len(x), dtype='float')
         p = np.zeros(len(x), dtype='float')
