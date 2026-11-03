@@ -2,7 +2,7 @@
 '''
 兼容入口：运行爆燃波算例（u_L = 0）。
 
-参数位于 cases.yaml。完整测试报告请运行：
+参数位于 cases/deflagration.yaml。完整测试报告请运行：
 
     python run_cases.py
 '''

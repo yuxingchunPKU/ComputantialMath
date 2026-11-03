@@ -2,7 +2,7 @@
 '''
 兼容入口：运行反应流算例（强爆轰与爆燃）。
 
-参数位于 cases.yaml。完整测试报告请运行：
+参数位于 cases/detonation.yaml 与 cases/deflagration.yaml。完整测试报告请运行：
 
     python run_cases.py
 '''

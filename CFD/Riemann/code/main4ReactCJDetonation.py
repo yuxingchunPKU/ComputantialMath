@@ -2,7 +2,7 @@
 '''
 兼容入口：运行 CJ 爆轰算例。
 
-参数位于 cases.yaml。完整测试报告请运行：
+参数位于 cases/detonation.yaml。完整测试报告请运行：
 
     python run_cases.py
 '''

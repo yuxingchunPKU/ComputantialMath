@@ -1,0 +1,74 @@
+# 爆轰波一维 Riemann 问题算例
+#
+# 在 code 目录下运行：
+#   python run_cases.py --config cases/detonation.yaml
+#
+# 长度、密度、速度、压强均采用国际单位制。
+
+meta:
+  title: 爆轰波黎曼问题精确解测试报告
+  description: >-
+    反应流中爆轰波 Riemann 问题的精确解测试，包括强爆轰波以及
+    CJ 爆轰波与稀疏波组成的复合波。
+
+defaults:
+  numerical:
+    method: newton      # newton | brent
+    tol: 1.0e-12
+    maxit: 1000
+  plot:
+    dpi: 200
+    # 单变量图像用于报告中并排展示，采用较紧凑的宽高比
+    figsize: [4.2, 3.0]
+    line_color: "#1f77b4"
+
+cases:
+  # ------------------------------------------------------------------
+  # 强爆轰（main4combustion.py case 1 / main4react.py）
+  # ------------------------------------------------------------------
+  - name: detonation_strong
+    description: 强爆轰算例，波后状态恰为左端给定状态；右侧为 CJ 爆轰分支之上的强爆轰波。
+    type: detonation
+    left:
+      rho: 1.57861
+      u: 2799.82
+      p: 7.70752e6
+      gamma: 1.27
+      q: 0.0
+    right:
+      rho: 0.601
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.27
+      q: 1.3444444444444444e7   # 242000/0.018
+    domain:
+      x_L: 0.0
+      x_R: 8.0
+      x_c: 4.0
+      t_end: 5.0e-4
+      N: 1200
+
+  # ------------------------------------------------------------------
+  # CJ 爆轰（main4combustion.py case 2 / main4ReactCJDetonation.py）
+  # ------------------------------------------------------------------
+  - name: detonation_cj
+    description: CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
+    type: detonation
+    left:
+      rho: 0.974514
+      u: 1586.05
+      p: 4.04266e6
+      gamma: 1.27
+      q: 0.0
+    right:
+      rho: 0.601
+      u: 0.0
+      p: 1.0e5
+      gamma: 1.27
+      q: 1.3444444444444444e7   # 242000/0.018
+    domain:
+      x_L: 0.0
+      x_R: 8.0
+      x_c: 4.0
+      t_end: 5.0e-4
+      N: 1200

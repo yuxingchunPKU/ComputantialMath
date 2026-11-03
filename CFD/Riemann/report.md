@@ -1,9 +1,9 @@
-# 刚性气体黎曼问题精确解测试报告
+# 刚性气体与反应流黎曼问题精确解测试报告
 
-一维 Euler 方程组的精确 Riemann 求解器测试。包括刚性气体（stiffened gas）、 爆轰波（强爆轰与 CJ 爆轰）以及爆燃波算例。
+一维 Euler 方程组的精确 Riemann 求解器测试。包括非反应刚性气体、爆燃波与爆轰波算例。
 
-> 由 `code/run_cases.py` 读取 `code/cases.yaml` 自动生成。
-> 生成时间：2026-11-02 01:07:50
+> 由 `code/run_cases.py` 读取 `code/cases/inert.yaml`、`code/cases/detonation.yaml`、`code/cases/deflagration.yaml` 自动生成。
+> 生成时间：2026-11-04 00:30:30
 
 ## 算例汇总
 
@@ -298,9 +298,11 @@ CJ 爆轰算例，右侧为 CJ 爆轰波与稀疏波组成的复合波。
 ```bash
 cd CFD/Riemann/code
 pip install -r requirements.txt
-python run_cases.py                    # 运行全部算例
-python run_cases.py --case inert_sod   # 只运行指定算例
-python run_cases.py --list             # 列出全部算例
+python run_cases.py                                  # 运行全部算例
+python run_cases.py --config cases/inert.yaml        # 只运行非反应算例
+python run_cases.py --config cases/detonation.yaml   # 只运行爆轰算例
+python run_cases.py --config cases/deflagration.yaml # 只运行爆燃算例
+python run_cases.py --list                           # 列出全部算例
 ```
 
-新增算例只需在 `cases.yaml` 的 `cases` 列表中追加一条记录，无需修改代码。
+新算例按类型追加到 `cases/` 下对应的 YAML 文件中，无需修改代码。

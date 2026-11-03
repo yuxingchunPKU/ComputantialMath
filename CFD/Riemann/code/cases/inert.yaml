@@ -1,0 +1,76 @@
+# 非反应刚性气体（stiffened gas）一维 Riemann 问题算例
+#
+# 在 code 目录下运行：
+#   python run_cases.py --config cases/inert.yaml
+#
+# 长度、密度、速度、压强均采用国际单位制。
+
+meta:
+  title: 非反应刚性气体黎曼问题精确解测试报告
+  description: >-
+    无反应刚性气体（stiffened gas）一维 Euler 方程 Riemann 问题的精确解测试，
+    包括经典 Sod 激波管问题与含非零 p_inf 的刚性气体推广。
+
+defaults:
+  numerical:
+    method: newton      # newton | brent
+    tol: 1.0e-12
+    maxit: 1000
+  plot:
+    dpi: 200
+    # 单变量图像用于报告中并排展示，采用较紧凑的宽高比
+    figsize: [4.2, 3.0]
+    line_color: "#1f77b4"
+
+cases:
+  # ------------------------------------------------------------------
+  # 经典 Sod 激波管问题（readme.md / main.py）
+  # ------------------------------------------------------------------
+  - name: inert_sod
+    description: 经典 Sod 激波管问题，左右两侧为不同比热比的理想气体。
+    type: inert
+    left:
+      rho: 1.0
+      u: 0.0
+      p: 1.0
+      gamma: 1.4
+      p_inf: 0.0
+    right:
+      rho: 0.125
+      u: 0.0
+      p: 0.1
+      gamma: 1.667
+      p_inf: 0.0
+    domain:
+      x_L: -0.5
+      x_R: 0.5
+      x_c: 0.0
+      t_end: 0.2
+      N: 400
+
+  # ------------------------------------------------------------------
+  # 刚性气体状态方程分支测试（p_inf != 0）
+  # ------------------------------------------------------------------
+  - name: inert_stiffened_gas
+    description: >-
+      Sod 问题的刚性气体推广，左右两侧状态方程均包含非零 p_inf，
+      用于检验状态方程和波速公式中的 p_inf 项。
+    type: inert
+    left:
+      rho: 1.0
+      u: 0.0
+      p: 1.0
+      gamma: 1.4
+      p_inf: 0.5
+    right:
+      rho: 0.125
+      u: 0.0
+      p: 0.1
+      gamma: 1.667
+      p_inf: 0.2
+    domain:
+      x_L: -0.5
+      x_R: 0.5
+      x_c: 0.0
+      t_end: 0.2
+      N: 400

@@ -7,11 +7,13 @@
 Markdown 测试报告。
 
 用法：
-    python run_cases.py                     # 运行全部算例并生成报告
+    python run_cases.py                     # 读取 cases/*.yaml，运行全部算例并生成报告
     python run_cases.py --case inert_sod
     python run_cases.py --case inert_sod,detonation_cj
     python run_cases.py --list
-    python run_cases.py --config cases.yaml --report ../report.md
+    python run_cases.py --config cases/inert.yaml
+    python run_cases.py --config cases/detonation.yaml cases/deflagration.yaml
+    python run_cases.py --report ../report.md
 '''
 import argparse
 import copy
@@ -35,10 +37,27 @@ import Exact_Riemann_complete_solve as ERCS
 import Exact_Riemann_Combustion as ERC
 
 CASE_TYPES = ("inert", "detonation", "deflagration")
+CASE_FILE_ORDER = {name: idx for idx, name in enumerate(CASE_TYPES)}
 TYPE_LABELS = {
     "inert": "非反应（刚性气体）",
     "detonation": "爆轰",
     "deflagration": "爆燃",
+}
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_CASE_DIR = SCRIPT_DIR / "cases"
+DEFAULT_FIG_DIR = SCRIPT_DIR.parent / "fig"
+DEFAULT_REPORT = SCRIPT_DIR.parent / "report.md"
+
+DEFAULT_PLOT_CFG = {
+    "dpi": 200,
+    "figsize": [4.2, 3.0],
+    "line_color": "#1f77b4",
+}
+DEFAULT_META = {
+    "title": "刚性气体与反应流黎曼问题精确解测试报告",
+    "description": "一维 Euler 方程组的精确 Riemann 求解器测试。包括非反应刚性气体、"
+                   "爆燃波与爆轰波算例。",
 }
 
 
@@ -64,9 +83,110 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def resolve_path(base_dir: Path, value: str) -> Path:
-    path = Path(value)
-    return path if path.is_absolute() else (base_dir / path).resolve()
+def _config_sort_key(path: Path):
+    '''按 inert → detonation → deflagration 的顺序排列配置文件'''
+    return (CASE_FILE_ORDER.get(path.stem, len(CASE_FILE_ORDER)), path.name)
+
+
+def yaml_files_in(directory: Path) -> list:
+    '''返回目录下按算例类型顺序排列的全部 YAML 文件'''
+    files = [path for path in directory.iterdir()
+             if path.is_file() and path.suffix in (".yaml", ".yml")]
+    return [path.resolve() for path in sorted(files, key=_config_sort_key)]
+
+
+def resolve_cli_path(value: str) -> Path:
+    '''命令行中给出的路径：先按当前目录解析，不存在时按脚本目录解析'''
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path
+    candidate = (Path.cwd() / path)
+    if candidate.exists():
+        return candidate.resolve()
+    return (SCRIPT_DIR / path).resolve()
+
+
+def discover_config_paths(config_args=None) -> list:
+    '''
+    确定要读取的 YAML 配置文件。
+
+    :param config_args: 命令行 --config 的参数列表；为 None 时读取 cases/ 全部 YAML
+    :return: 去重后的配置文件路径列表
+    '''
+    if not config_args:
+        paths = yaml_files_in(DEFAULT_CASE_DIR)
+        if not paths:
+            raise FileNotFoundError(f"在 {DEFAULT_CASE_DIR} 中未找到 YAML 配置文件")
+        return paths
+
+    paths = []
+    for value in config_args:
+        path = resolve_cli_path(value)
+        if path.is_dir():
+            found = yaml_files_in(path)
+            if not found:
+                raise FileNotFoundError(f"目录 {path} 中没有 YAML 配置文件")
+            paths.extend(found)
+        elif path.is_file():
+            paths.append(path)
+        else:
+            raise FileNotFoundError(f"配置文件不存在: {path}")
+
+    unique = []
+    seen = set()
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return unique
+
+
+def load_configs(paths: list) -> list:
+    '''读取多个 YAML 文件，并把文件路径记录在 _path 中'''
+    configs = []
+    for path in paths:
+        config = load_yaml(path)
+        config["_path"] = path
+        configs.append(config)
+    return configs
+
+
+def prepare_all_cases(configs: list) -> list:
+    '''合并多个配置文件中的算例，并检查算例名全局唯一'''
+    cases = []
+    by_name = {}
+    for config in configs:
+        path = Path(config["_path"])
+        for case in prepare_cases(config):
+            name = case["name"]
+            if name in by_name:
+                raise ValueError(
+                    f"算例名称重复: {name}（{by_name[name]} 与 {path}）")
+            by_name[name] = path
+            case["_source_file"] = path
+            cases.append(case)
+    return cases
+
+
+def report_meta(configs: list) -> dict:
+    '''单个配置文件时使用其 meta，多个文件时使用汇总报告的 meta'''
+    if len(configs) == 1:
+        return deep_merge(DEFAULT_META, configs[0].get("meta") or {})
+    return copy.deepcopy(DEFAULT_META)
+
+
+def format_config_paths(paths: list) -> str:
+    '''把配置文件路径格式化为报告中的相对路径说明'''
+    labels = []
+    base = SCRIPT_DIR.parent
+    for path in paths:
+        path = Path(path)
+        try:
+            shown = path.relative_to(base)
+        except ValueError:
+            shown = path
+        labels.append(f"`{shown.as_posix()}`")
+    return "、".join(labels)
 
 
 def prepare_cases(config: dict) -> list:
@@ -502,7 +622,7 @@ def _star_table(result: dict) -> str:
     return "\n".join(lines)
 
 
-def build_report(results: list, report_path: Path, config_path: Path, meta: dict) -> str:
+def build_report(results: list, report_path: Path, config_paths: list, meta: dict) -> str:
     report_dir = report_path.parent
     title = meta.get("title", "刚性气体黎曼问题精确解测试报告")
     description = meta.get("description", "")
@@ -513,7 +633,8 @@ def build_report(results: list, report_path: Path, config_path: Path, meta: dict
     if description:
         lines.append(description)
         lines.append("")
-    lines.append(f"> 由 `code/run_cases.py` 读取 `code/{config_path.name}` 自动生成。")
+    sources = format_config_paths(config_paths)
+    lines.append(f"> 由 `code/run_cases.py` 读取 {sources} 自动生成。")
     lines.append(f"> 生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("")
 
@@ -591,19 +712,21 @@ def build_report(results: list, report_path: Path, config_path: Path, meta: dict
     lines.append("```bash")
     lines.append("cd CFD/Riemann/code")
     lines.append("pip install -r requirements.txt")
-    lines.append("python run_cases.py                    # 运行全部算例")
-    lines.append("python run_cases.py --case inert_sod   # 只运行指定算例")
-    lines.append("python run_cases.py --list             # 列出全部算例")
+    lines.append("python run_cases.py                                  # 运行全部算例")
+    lines.append("python run_cases.py --config cases/inert.yaml        # 只运行非反应算例")
+    lines.append("python run_cases.py --config cases/detonation.yaml   # 只运行爆轰算例")
+    lines.append("python run_cases.py --config cases/deflagration.yaml # 只运行爆燃算例")
+    lines.append("python run_cases.py --list                           # 列出全部算例")
     lines.append("```")
     lines.append("")
-    lines.append("新增算例只需在 `cases.yaml` 的 `cases` 列表中追加一条记录，无需修改代码。")
+    lines.append("新算例按类型追加到 `cases/` 下对应的 YAML 文件中，无需修改代码。")
     lines.append("")
     return "\n".join(lines)
 
 
-def write_report(results: list, report_path: Path, config_path: Path, meta: dict):
+def write_report(results: list, report_path: Path, config_paths: list, meta: dict):
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    content = build_report(results, report_path, config_path, meta)
+    content = build_report(results, report_path, config_paths, meta)
     report_path.write_text(content, encoding="utf-8")
     print(f"报告已写入: {report_path}")
 
@@ -614,26 +737,29 @@ def write_report(results: list, report_path: Path, config_path: Path, meta: dict
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="读取 YAML 配置，运行一维黎曼问题精确解算例并生成 Markdown 报告")
-    parser.add_argument("--config", default=None,
-                        help="YAML 配置文件（默认与本脚本同目录的 cases.yaml）")
+    parser.add_argument("--config", nargs="+", default=None,
+                        help="一个或多个 YAML 配置文件或目录；默认读取 cases/*.yaml")
     parser.add_argument("--case", default=None,
                         help="要运行的算例名称，多个名称用逗号分隔")
     parser.add_argument("--list", action="store_true", help="列出全部算例后退出")
-    parser.add_argument("--fig-dir", default=None, help="覆盖配置文件中的图像输出目录")
-    parser.add_argument("--report", default=None, help="覆盖配置文件中的报告输出路径")
+    parser.add_argument("--fig-dir", default=None,
+                        help=f"图像输出目录（默认 {DEFAULT_FIG_DIR}）")
+    parser.add_argument("--report", default=None,
+                        help="报告输出路径（默认 ../report.md；只加载单个配置文件时为 "
+                             "../report_<文件名>.md）")
     parser.add_argument("--no-report", action="store_true", help="不生成 Markdown 报告")
     parser.add_argument("--quiet", action="store_true", help="不打印每个算例的求解结果")
     args = parser.parse_args(argv)
 
-    script_dir = Path(__file__).resolve().parent
-    config_path = Path(args.config).resolve() if args.config else script_dir / "cases.yaml"
-    config = load_yaml(config_path)
-    config_dir = config_path.parent
-    cases = prepare_cases(config)
+    config_paths = discover_config_paths(args.config)
+    configs = load_configs(config_paths)
+    cases = prepare_all_cases(configs)
 
     if args.list:
         for case in cases:
-            print(f"{case['name']:24s} {case['type']:14s} {case.get('description', '')}")
+            source = Path(case["_source_file"]).name
+            print(f"{case['name']:24s} {case['type']:14s} {source:22s} "
+                  f"{case.get('description', '')}")
         return 0
 
     names = None
@@ -641,27 +767,42 @@ def main(argv=None):
         names = [name.strip() for name in args.case.split(",") if name.strip()]
     selected = select_cases(cases, names)
 
-    output_cfg = config.get("defaults", {}).get("output", {}) or {}
-    fig_dir_value = args.fig_dir or output_cfg.get("fig_dir", "../fig")
-    fig_dir = resolve_path(config_dir, fig_dir_value)
+    if args.fig_dir:
+        fig_dir = Path(args.fig_dir).expanduser().resolve()
+    else:
+        fig_dir = DEFAULT_FIG_DIR
     fig_dir.mkdir(parents=True, exist_ok=True)
 
-    report_value = args.report or output_cfg.get("report", "../report.md")
-    report_path = resolve_path(config_dir, report_value)
+    if args.report:
+        report_path = Path(args.report).expanduser().resolve()
+    elif args.config is not None and len(config_paths) == 1:
+        report_path = DEFAULT_REPORT.parent / f"report_{config_paths[0].stem}.md"
+    else:
+        report_path = DEFAULT_REPORT
 
-    default_plot_cfg = config.get("defaults", {}).get("plot", {}) or {}
     results = []
     for case in selected:
-        plot_cfg = case.get("plot", default_plot_cfg) or default_plot_cfg
+        plot_cfg = deep_merge(DEFAULT_PLOT_CFG, case.get("plot") or {})
         results.append(run_case(case, fig_dir, plot_cfg, verbose=not args.quiet))
+
+    subset_configs = False
+    if args.config is not None:
+        try:
+            default_config_paths = discover_config_paths(None)
+        except FileNotFoundError:
+            default_config_paths = []
+        subset_configs = set(config_paths) != set(default_config_paths)
 
     if not args.no_report:
         # 只运行部分算例时，默认不覆盖完整报告，避免丢失其它算例的结果。
         if args.case and not args.report:
             print("仅运行了部分算例，未生成报告（避免覆盖完整报告）。"
                   "如需生成请显式指定 --report <路径>。")
+        elif subset_configs and len(config_paths) > 1 and not args.report:
+            print("仅加载了部分配置文件，未生成报告（避免覆盖完整报告）。"
+                  "如需生成请显式指定 --report <路径>。")
         else:
-            write_report(results, report_path, config_path, config.get("meta", {}) or {})
+            write_report(results, report_path, config_paths, report_meta(configs))
     return 0
 
 
