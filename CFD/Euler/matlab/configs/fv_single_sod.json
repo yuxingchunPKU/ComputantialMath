@@ -1,0 +1,18 @@
+{
+  "name": "fv_single_sod",
+  "description": "单介质有限体积二阶 MUSCL 格式求解经典 Sod 激波管问题。",
+  "scheme": "fv",
+  "medium": "single",
+  "order": 2,
+  "flux": "llf",
+  "time": {"t_end": 0.15, "cfl": 0.4},
+  "mesh": {"x_min": 0.0, "x_max": 1.0, "nx": 400, "boundary": "transmissive"},
+  "fluids": {"gamma": 1.4, "p_inf": 0.0},
+  "initial": {
+    "type": "sod",
+    "x_interface": 0.5,
+    "left": {"rho": 1.0, "u": 0.0, "p": 1.0},
+    "right": {"rho": 0.125, "u": 0.0, "p": 0.1}
+  },
+  "output": {"dir": "figures/fv_single_sod"}
+}

@@ -1,0 +1,22 @@
+{
+  "name": "dg_two_gamma_sod",
+  "description": "双介质 DG P2 格式求解左右比热比不同的 Sod 激波管问题，检验介质界面与黎曼求解器。",
+  "scheme": "dg",
+  "medium": "two",
+  "order": 2,
+  "flux": "llf",
+  "time": {"t_end": 0.15, "cfl": 0.1},
+  "mesh": {"x_min": 0.0, "x_max": 1.0, "nx": 100, "boundary": "transmissive"},
+  "fluids": {
+    "left": {"gamma": 1.4, "p_inf": 0.0},
+    "right": {"gamma": 1.667, "p_inf": 0.0}
+  },
+  "initial": {
+    "type": "sod",
+    "x_interface": 0.5,
+    "left": {"rho": 1.0, "u": 0.0, "p": 1.0},
+    "right": {"rho": 0.125, "u": 0.0, "p": 0.1}
+  },
+  "limiter": {"tvb": 0.0},
+  "output": {"dir": "figures/dg_two_gamma_sod"}
+}

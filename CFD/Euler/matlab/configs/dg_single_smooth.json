@@ -1,0 +1,22 @@
+{
+  "name": "dg_single_smooth",
+  "description": "单介质 DG P2 格式求解周期光滑密度波的输运问题。",
+  "scheme": "dg",
+  "medium": "single",
+  "order": 2,
+  "flux": "llf",
+  "time": {"t_end": 2.0, "cfl": 0.1},
+  "mesh": {"x_min": 0.0, "x_max": 2.0, "nx": 160, "boundary": "periodic"},
+  "fluids": {"gamma": 1.4, "p_inf": 0.0},
+  "initial": {
+    "type": "smooth",
+    "x_interface": 0.5,
+    "rho0": 1.0,
+    "rho_amp": 0.2,
+    "k": 1.0,
+    "u0": 1.0,
+    "p0": 1.0
+  },
+  "limiter": {"tvb": 0.0},
+  "output": {"dir": "figures/dg_single_smooth"}
+}

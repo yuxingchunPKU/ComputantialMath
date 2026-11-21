@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "title": "爆燃波黎曼问题精确解测试报告",
+    "description": "反应流中爆燃波 Riemann 问题的精确解测试。右端为未燃气体，火焰速度满足 V = u0 + K (p0/rho0)^Q。"
+  },
+  "defaults": {
+    "numerical": {"method": "brent", "tol": 1.0e-12, "maxit": 10000},
+    "plot": {"dpi": 200, "figsize": [4.2, 3.0], "line_color": "#1f77b4"}
+  },
+  "cases": [
+    {
+      "name": "deflagration",
+      "description": "爆燃波算例。右端为未燃气体，左端为已燃气体；火焰速度满足 V = u0 + K (p0/rho0)^Q。该算例中左波强度接近于零。",
+      "type": "deflagration",
+      "left": {"rho": 0.142168, "u": -181.018, "p": 9.45695e4, "gamma": 1.4, "q": 0.0},
+      "right": {"rho": 1.0, "u": 0.0, "p": 1.0e5, "gamma": 1.4, "q": 2.0e6},
+      "deflagration": {"K": 3.0e-9, "Q": 2},
+      "domain": {"x_L": 0.0, "x_R": 1.6, "x_c": 0.8, "t_end": 5.0e-4, "N": 1000}
+    },
+    {
+      "name": "deflagration_uL0",
+      "description": "与上一算例相同，但左端速度取 u_L = 0，左波为激波。",
+      "type": "deflagration",
+      "left": {"rho": 0.142168, "u": 0.0, "p": 9.45695e4, "gamma": 1.4, "q": 0.0},
+      "right": {"rho": 1.0, "u": 0.0, "p": 1.0e5, "gamma": 1.4, "q": 2.0e6},
+      "deflagration": {"K": 3.0e-9, "Q": 2},
+      "domain": {"x_L": 0.0, "x_R": 1.6, "x_c": 0.8, "t_end": 5.0e-4, "N": 1000}
+    }
+  ]
+}

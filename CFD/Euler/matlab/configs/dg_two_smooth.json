@@ -1,0 +1,25 @@
+{
+  "name": "dg_two_smooth",
+  "description": "双介质切割单元 DG P2 格式求解周期光滑密度波输运（界面仅作为介质标记）。",
+  "scheme": "dg",
+  "medium": "two",
+  "order": 2,
+  "flux": "llf",
+  "time": {"t_end": 1.0, "cfl": 0.1},
+  "mesh": {"x_min": 0.0, "x_max": 2.0, "nx": 80, "boundary": "periodic"},
+  "fluids": {
+    "left": {"gamma": 1.4, "p_inf": 0.0},
+    "right": {"gamma": 1.4, "p_inf": 0.0}
+  },
+  "initial": {
+    "type": "smooth",
+    "x_interface": 0.5,
+    "rho0": 1.0,
+    "rho_amp": 0.2,
+    "k": 1.0,
+    "u0": 1.0,
+    "p0": 1.0
+  },
+  "limiter": {"tvb": 0.0},
+  "output": {"dir": "figures/dg_two_smooth"}
+}
